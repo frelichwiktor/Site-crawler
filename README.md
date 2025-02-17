@@ -1,6 +1,6 @@
 # Basic site crawler
 
-This is a basic site crawler that visits websites either from a provided text file (urls.txt), an XML sitemap, or both. It checks if the DOM content is loaded and logs any issues encountered. Additionally, the crawler detects 404 Not Found errors and saves them in a separate file.
+This is a basic site crawler that visits websites either from a provided text file (urls.txt), an XML sitemap, or both. It checks if the DOM content is loaded and logs any issues encountered. Additionally, the crawler detects 404 Not Found errors, the 500 Internal Server Errors and saves them in a separate files.
 
 ## Installation
 

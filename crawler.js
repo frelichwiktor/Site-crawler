@@ -110,7 +110,6 @@ const axios = require('axios');
         return;
     }
 
-    // Generate cookies per unique host
     const uniqueHosts = [...new Set(urls.map(url => new URL(url).host))];
     const cookies = uniqueHosts.map(host => ({
         name: 'name',
@@ -128,8 +127,10 @@ const axios = require('axios');
     let timeoutCount = 0;
     let errorCount = 0;
     let notFoundCount = 0;
+    let serverErrorCount = 0;
     const failedUrls = [];
     const notFoundUrls = [];
+    const serverErrorUrls = [];
 
     for (const url of urls) {
         crawledCount++;
@@ -145,6 +146,13 @@ const axios = require('axios');
                 console.log(`❌ 404 Not Found: ${url}`);
                 notFoundCount++;
                 notFoundUrls.push(url);
+                continue;
+            }
+
+            if (response.status() === 500) {
+                console.log(`🚨 500 Internal Server Error: ${url}`);
+                serverErrorCount++;
+                serverErrorUrls.push(url);
                 continue;
             }
 
@@ -176,12 +184,20 @@ const axios = require('axios');
         console.log(`📌 404 Not Found URLs saved to 'URLs/urls-404.txt'`);
     }
 
+    if (serverErrorUrls.length) {
+        fs.writeFileSync(path.join(outputDir, 'urls-500.txt'), serverErrorUrls.join('\n'));
+        console.log(`📌 500 Internal Server Error URLs saved to 'URLs/urls-500.txt'`);
+    }
+
+    
+
     console.log(`\n📊 Crawl Summary:`);
     console.log(`✅ Total Sites Crawled: ${crawledCount}`);
     console.log(`✔️ Sites Fully Loaded: ${successfulCount}`);
     console.log(`⚠️ Sites with Timeout: ${timeoutCount}`);
     console.log(`❌ Sites with Error: ${errorCount}`);
     console.log(`🚫 404 Not Found Pages: ${notFoundCount}`);
+    console.log(`🚨 500 Internal Server Errors: ${serverErrorCount}`);
 
     const totalTimeTaken = (Date.now() - startTime) / 1000;
     console.log(`\n⏳ Total Time: ${totalTimeTaken.toFixed(2)} seconds`);
