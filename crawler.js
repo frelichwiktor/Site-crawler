@@ -131,6 +131,8 @@ const axios = require('axios');
     const failedUrls = [];
     const notFoundUrls = [];
     const serverErrorUrls = [];
+    const pageLoadTimes = [];
+    const urlLoadTimes = [];
 
     for (const url of urls) {
         crawledCount++;
@@ -140,7 +142,7 @@ const axios = require('axios');
 
         try {
             const pageStartTime = Date.now();
-            const response = await page.goto(url, { waitUntil: 'commit', timeout: 60000 });
+            const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
             if (response.status() === 404) {
                 console.log(`❌ 404 Not Found: ${url}`);
@@ -158,6 +160,9 @@ const axios = require('axios');
 
             const pageLoadTime = (Date.now() - pageStartTime) / 1000;
             console.log(`✅ Load Time: ${pageLoadTime.toFixed(2)} seconds`);
+
+            pageLoadTimes.push(pageLoadTime);
+            urlLoadTimes.push({ url, loadTime: pageLoadTime });
 
             successfulCount++;
             fs.appendFileSync(path.join(outputDir, 'urls-crawled.txt'), url + '\n');
@@ -189,7 +194,21 @@ const axios = require('axios');
         console.log(`📌 500 Internal Server Error URLs saved to 'URLs/urls-500.txt'`);
     }
 
-    
+    const averageLoadTime = pageLoadTimes.length > 0 
+        ? (pageLoadTimes.reduce((a, b) => a + b, 0) / pageLoadTimes.length).toFixed(2)
+        : 0;
+
+    const sortedLoadTimes = [...urlLoadTimes].sort((a, b) => b.loadTime - a.loadTime);
+    const slowestPagesCount = Math.ceil(urlLoadTimes.length * 0.1); // 10% of total
+    const slowestPages = sortedLoadTimes.slice(0, slowestPagesCount);
+
+    if (slowestPages.length > 0) {
+        const slowPagesContent = slowestPages
+            .map(item => `${item.url} - ${item.loadTime.toFixed(2)} seconds`)
+            .join('\n');
+        fs.writeFileSync(path.join(outputDir, 'slowest-pages.txt'), slowPagesContent);
+        console.log(`📌 Slowest pages (top 10%) saved to 'URLs/slowest-pages.txt'`);
+    }
 
     console.log(`\n📊 Crawl Summary:`);
     console.log(`✅ Total Sites Crawled: ${crawledCount}`);
@@ -198,6 +217,7 @@ const axios = require('axios');
     console.log(`❌ Sites with Error: ${errorCount}`);
     console.log(`🚫 404 Not Found Pages: ${notFoundCount}`);
     console.log(`🚨 500 Internal Server Errors: ${serverErrorCount}`);
+    console.log(`⏱️ Average Load Time: ${averageLoadTime} seconds`);
 
     const totalTimeTaken = (Date.now() - startTime) / 1000;
     console.log(`\n⏳ Total Time: ${totalTimeTaken.toFixed(2)} seconds`);
