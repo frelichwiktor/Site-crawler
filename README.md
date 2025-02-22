@@ -1,6 +1,6 @@
 # Basic site crawler
 
-This is a basic site crawler that visits websites either from a provided text file (urls.txt), an XML sitemap, or both. It checks if the DOM content is loaded and logs any issues encountered. Additionally, the crawler detects 404 Not Found errors, the 500 Internal Server Errors and saves them in a separate files.
+This is a basic site crawler that visits websites either from a provided text file (urls.txt), an XML sitemap, or both. It checks if the DOM content is loaded and logs any issues encountered. Additionally, the crawler detects 404 Not Found errors, 500 Internal Server Errors, and analyzes page load performance metrics, saving the results in separate files.
 
 ## Installation
 
@@ -94,6 +94,17 @@ Results are saved in the `URLs/` folder:
 - `urls-crawled.txt` – Successfully crawled URLs.
 - `urls-failed.txt` – URLs that failed to load.
 - `urls-404.txt` – URLs that returned a `404 Not Found` response.
+- `urls-500.txt` – URLs that returned a `500 Internal Server Error` response.
+- `slowest-pages.txt` – List of the slowest 10% of pages with their load times.
+
+### Performance Analysis
+
+The crawler now includes performance monitoring features:
+
+- Tracks individual page load times.
+- Calculates average load time across all successfully loaded pages.
+- Identifies and reports the slowest 10% of pages.
+- Format of slowest-pages.txt: "URL - time in seconds".
 
 ### Summary Report
 
@@ -104,13 +115,16 @@ At the end of each run, a summary is displayed, including:
 - Sites with timeouts
 - Sites with errors
 - `404 Not Found` pages
+- `500 Internal Server Error` pages
+- Average page load time
 - Total execution time
 
 ## Notes
 
 - Ensure the `URLs/` folder exists before running the crawler.
 - If a URL file or sitemap is missing, the program will prompt you accordingly.
-
+- Load times are measured from the start of navigation until the DOM content is loaded.
+- The slowest pages report helps identify potential performance bottlenecks.
 ---
 
 Happy crawling! 🚀
