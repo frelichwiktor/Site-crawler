@@ -57,6 +57,27 @@ https://example.com/sitemap.xml
 
 The crawler will parse the sitemap and extract all listed URLs.
 
+### URL Suffix Feature
+
+The crawler now supports adding a custom suffix to all URLs before crawling. After selecting your URL source, you'll be prompted:
+
+```
+Do you want to add a suffix to each URL? (y/n):
+```
+
+If you choose 'y', you'll be asked to enter the suffix:
+
+```
+Enter the suffix to add (e.g. /_nocache):
+```
+
+This feature is useful for:
+- Testing cache-busting with suffixes like `/_nocache` or `?nocache=true`
+- Checking alternative page versions with suffixes like `/preview` or `/print`
+- Testing URL parameters by adding query strings like `?test=true`
+
+The suffix is added to the path portion of each URL, preserving the original domain and any existing query parameters.
+
 ### Cookie Configuration
 
 If you need to pass a specific cookie, modify the `cookie` object inside `crawler.js`:

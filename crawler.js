@@ -110,6 +110,29 @@ const axios = require('axios');
         return;
     }
 
+    // New code: Ask if user wants to add a suffix to each URL
+    let addSuffix = await askQuestion("Do you want to add a suffix to each URL? (y/n): ");
+    let suffix = '';
+
+    if (addSuffix === 'y') {
+        suffix = await askQuestion("Enter the suffix to add (e.g. /_nocache): ");
+        console.log(`🔧 Adding suffix "${suffix}" to all URLs`);
+    }
+
+    // Modify the URLs with the suffix if specified
+    if (suffix) {
+        urls = urls.map(url => {
+            try {
+                const urlObj = new URL(url);
+                urlObj.pathname = urlObj.pathname + suffix;
+                return urlObj.toString();
+            } catch (error) {
+                console.error(`Failed to add suffix to ${url}: ${error.message}`);
+                return url;
+            }
+        });
+    }
+
     const uniqueHosts = [...new Set(urls.map(url => new URL(url).host))];
     const cookies = uniqueHosts.map(host => ({
         name: 'name',
@@ -219,8 +242,8 @@ const axios = require('axios');
     console.log(`🚨 500 Internal Server Errors: ${serverErrorCount}`);
     console.log(`⏱️ Average Load Time: ${averageLoadTime} seconds`);
 
-    const totalTimeTaken = (Date.now() - startTime) / 1000;
-    console.log(`\n⏳ Total Time: ${totalTimeTaken.toFixed(2)} seconds`);
+    const totalTimeTaken = (Date.now() - startTime) / 1000 / 60;
+    console.log(`\n⏳ Total Time: ${totalTimeTaken.toFixed(2)} minutes`);
 
     await browser.close();
 })();
