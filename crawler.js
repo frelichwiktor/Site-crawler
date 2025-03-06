@@ -1,5 +1,5 @@
 const config = require('./config');
-const { chromium } = require('playwright');
+const { chromium, selectors } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
@@ -10,11 +10,46 @@ async function main() {
     const startTime = Date.now();
     
     try {
-        const browser = await setupBrowser();
+        // Load credentials first
+        const credentials = await loadCredentials();
         
+        // Set up browser
+        const browser = await setupBrowser();
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        
+        // Navigate to Page A and click the Public button for the target URL
+        console.log("\n--- PHASE 1: Navigating to Switcher ---");
+        const pageASuccess = await navigatePageA(page, config.targetUrls.pageA);
+        if (!pageASuccess) {
+            throw new Error("Failed to complete Switcher navigation");
+        }
+        
+        // Log in to Page B
+        console.log("\n--- PHASE 2: Logging into the Matrix! ---");
+        const pageBSuccess = await loginToPageB(page, credentials.pageB);
+        if (!pageBSuccess) {
+            throw new Error("Failed to log in to Matrix");
+        }
+        
+        // Continue with normal crawling process
+        console.log("\n--- PHASE 3: Starting URL Crawling ---");
         const urls = await getUrlsToProcess();
         
-        const results = await crawlUrls(browser, urls);
+        // // Force suffix to be _performance for all URLs
+        // console.log("🔧 Adding suffix '/_performance' to all URLs");
+        // const processedUrls = urls.map(url => {
+        //     try {
+        //         const urlObj = new URL(url);
+        //         urlObj.pathname = urlObj.pathname + '/_performance';
+        //         return urlObj.toString();
+        //     } catch (error) {
+        //         console.error(`Failed to add suffix to ${url}: ${error.message}`);
+        //         return url;
+        //     }
+        // });
+        
+        const results = await crawlUrls(browser, context, page, processedUrls);
         
         generateReports(results);
         
@@ -27,6 +62,120 @@ async function main() {
 }
 
 main();
+
+// async function loginToPageA(page, credentials) {
+//     console.log("🔑 Logging into Page A...");
+    
+//     try {
+//         // Navigate to Page A
+//         await page.goto(credentials.pageAUrl, { waitUntil: 'domcontentloaded' });
+        
+//         // Fill in credentials
+//         await page.fill('input[name="username"]', credentials.username);
+//         await page.fill('input[name="password"]', credentials.password);
+        
+//         // Click login button
+//         await page.click('button[type="submit"]');
+        
+//         // Wait for navigation to complete
+//         await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+        
+//         console.log("✅ Successfully logged into Page A");
+//         return true;
+//     } catch (error) {
+//         console.error("❌ Failed to log into Page A:", error);
+//         return false;
+//     }
+// }
+
+async function navigatePageA(page, targetUrl) {
+    console.log(`🔍 Looking for URL "${targetUrl}" to click Public button...`);
+    
+    try {
+        // Navigate to the switcher page
+        await page.goto(config.pageUrls.pageA, { waitUntil: 'domcontentloaded' });
+        console.log("✅ Loaded switcher page");
+        
+        // Wait for the page to load
+        await page.waitForSelector('#switcher', { timeout: 30000 });
+        console.log("✅ Switcher is visible");
+
+        await page.locator('#sup-urls div').filter({ hasText: 'URL: https://www.cardiff.ac.uk Public Admin' })
+        .getByRole('link')
+        .first()
+        .evaluate((link) => {
+            link.removeAttribute('target');  // Remove the 'target' attribute
+            link.click(); // Perform the click
+        });
+        console.log(`✅ Clicked Public button for "${targetUrl}"`);
+        
+        // Wait for any navigation or changes
+        await page.waitForLoadState('networkidle');
+        console.log(`✅ DXP is here!`);
+        
+        return true;
+    } catch (error) {
+        console.error(`❌ Failed to navigate Switcher:`, error);
+    }
+}
+
+
+async function loginToPageB(page, credentials) {
+    console.log("🔑 Attempting to log into Matrix...");
+    
+    try {
+        // Navigate to Page B
+        await page.goto(config.pageUrls.pageB, { waitUntil: 'domcontentloaded' });
+        
+        // First, verify we're on the right version by checking for "Matrix DXP" span
+        const versionCheck = await page.textContent('#switched-ui-marker');
+        if (!versionCheck || !versionCheck.includes('Matrix DXP')) {
+            throw new Error("❌ Verification failed: Not on the correct Matrix DXP version");
+        }
+        console.log("✅ Verification passed: Matrix DXP version detected");
+        
+        // Fill in credentials
+        await page.fill('input[name="SQ_LOGIN_USERNAME"]', credentials.username);
+        await page.fill('input[name="SQ_LOGIN_PASSWORD"]', credentials.password);
+        
+        // Click login button
+        await page.click('input[type="submit"][value="Log In"]');
+        
+        // Wait for navigation to complete
+        await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+        
+        console.log("✅ Successfully logged into Matrix!");
+        return true;
+    } catch (error) {
+        console.error("❌ Failed to log into Matrix:", error);
+        return false;
+    }
+}
+
+async function loadCredentials() {
+    console.log("🔑 Loading credentials...");
+    
+    try {
+        // Attempt to load from credentials.js
+        const credentials = require('./credentials.js');
+        console.log("✅ Credentials loaded from file");
+        return credentials;
+    } catch (error) {
+        console.log("⚠️ credentials.js not found or invalid");
+        console.log("ℹ️ Please create credentials.js based on credentials.sample.js");
+        
+        // Fall back to prompting
+        const username = await askQuestion("Enter username for Page B: ");
+        const password = await askQuestion("Enter password for Page B: ");
+        
+        return {
+            pageB: {
+                username,
+                password
+            }
+        };
+    }
+}
 
 async function setupBrowser() {
     const browser = await chromium.launch({ 
@@ -106,8 +255,8 @@ async function processSuffixOption(urls) {
 }
 
 async function crawlUrls(browser, urls) {
-    const context = await browser.newContext();
-    const page = await context.newPage();
+    // const context = await browser.newContext();
+    // const page = await context.newPage();
     
     page.setDefaultTimeout(config.browser.defaultTimeout);
     page.setDefaultNavigationTimeout(config.browser.navigationTimeout);

@@ -1,6 +1,6 @@
 module.exports = {
     browser: {
-        headless: true,
+        headless: false,
         defaultTimeout: 30000,
         navigationTimeout: 30000
     },
@@ -27,5 +27,16 @@ module.exports = {
         path: '/',
         httpOnly: true,
         secure: false
+    },
+    
+    // New section for target URLs
+    targetUrls: {
+        pageA: 'https://www.cardiff.ac.uk'
+    },
+    
+// In config.js, update the pageUrls section:
+    pageUrls: {
+        pageA: 'https://cardiff.ac.uk/__streamline/switcher/',
+        pageB: 'https://www.cardiff.ac.uk/_admin/?FORCE_BACKUP_LOGIN=1'
     }
 };

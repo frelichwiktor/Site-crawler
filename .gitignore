@@ -4,3 +4,5 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+# Credentials file (contains sensitive information)
+credentials.js
