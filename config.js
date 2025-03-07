@@ -29,12 +29,10 @@ module.exports = {
         secure: false
     },
     
-    // New section for target URLs
-    targetUrls: {
-        pageA: 'https://www.cardiff.ac.uk'
+    urlToFind: {
+        pageToFind: 'https://www.cardiff.ac.uk'
     },
     
-// In config.js, update the pageUrls section:
     pageUrls: {
         switcher: 'https://cardiff.ac.uk/__streamline/switcher/',
         matrix: 'https://www.cardiff.ac.uk/_admin/?FORCE_BACKUP_LOGIN=1'

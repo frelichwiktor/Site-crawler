@@ -51,7 +51,6 @@ async function main() {
         
         displaySummary(results, startTime);
         
-        // Save performance data to CSV
         await savePerformanceDataToCsv(results);
         
         await browser.close();
@@ -83,26 +82,24 @@ main();
 //     }
 // }
 
-async function navigateToSwitcher(page, targetUrl) {
-    console.log(`🔍 Looking for URL "${targetUrl}" to click Public button...`);
+async function navigateToSwitcher(page) {
+    console.log(`🔍 Looking for URL "${config.urlToFind.pageToFind}" to click Public button...`);
 
     try {
-        // Navigate to the switcher page
         await page.goto(config.pageUrls.switcher, { waitUntil: 'domcontentloaded' });
         console.log("✅ Loaded switcher page");
         
-        // Wait for the page to load
         await page.waitForSelector('#switcher', { timeout: 30000 });
         console.log("✅ Switcher is visible");
 
-        await page.locator('#sup-urls div').filter({ hasText: 'URL: https://www.cardiff.ac.uk Public Admin' })
+        await page.locator('#sup-urls div').filter({ hasText: `URL: ${config.urlToFind.pageToFind} Public Admin` })
         .getByRole('link')
         .first()
         .evaluate((link) => {
             link.removeAttribute('target');  // Remove the 'target' attribute
             link.click(); // Perform the click
         });
-        console.log(`✅ Clicked Public button for "${targetUrl}"`);
+        console.log(`✅ Clicked Public button for ${config.urlToFind.pageToFind}.`);
         
         await page.waitForLoadState('networkidle');
         console.log(`✅ DXP is here!`);
@@ -241,9 +238,6 @@ async function processSuffixOption(urls) {
 }
 
 async function crawlUrls(browser, context, page, urls) {
-    // Removed: no longer creating context and page here since they're passed as parameters
-    // const context = await browser.newContext();
-    // const page = await context.newPage();
     
     page.setDefaultTimeout(config.browser.defaultTimeout);
     page.setDefaultNavigationTimeout(config.browser.navigationTimeout);
@@ -296,7 +290,6 @@ async function crawlUrls(browser, context, page, urls) {
             const pageLoadTime = (Date.now() - pageStartTime) / 1000;
             console.log(`✅ Load Time: ${pageLoadTime.toFixed(2)} seconds`);
 
-            // Extract performance data
             await extractPerformanceData(page, url, results);
 
             results.pageLoadTimes.push(pageLoadTime);
@@ -330,7 +323,6 @@ async function extractPerformanceData(page, url, results) {
     try {
         console.log(`📊 Extracting performance data from ${url}`);
         
-        // Initialize performance data object
         const perfData = {
             url: url,
             totalTime: null,
@@ -341,8 +333,7 @@ async function extractPerformanceData(page, url, results) {
             timestamp: new Date().toISOString()
         };
         
-        // Wait longer for the page to fully load and stabilize
-        await page.waitForLoadState('networkidle', { timeout: 15000 })
+        await page.waitForLoadState('networkidle', { timeout: 20000 })
             .catch(() => console.log('⚠️ Page did not reach network idle state'));
         
         // Debug: List all frames on the page
@@ -394,12 +385,10 @@ async function extractPerformanceData(page, url, results) {
             }
         }
         
-        // If we have a frame, try to extract data from it
         if (frame) {
             try {
-                // Wait for the performance data to be visible in the frame
                 console.log(`🔍 Looking for #perfSummary .perfTotal in frame...`);
-                await frame.waitForSelector('#perfSummary .perfTotal', { timeout: 10000 })
+                await frame.waitForSelector('#perfSummary .perfTotal', { timeout: 20000 })
                     .then(() => console.log(`✅ Found #perfSummary .perfTotal in frame`))
                     .catch(() => console.log(`❌ Could not find #perfSummary .perfTotal in frame`));
                 
@@ -498,19 +487,15 @@ async function extractPerformanceData(page, url, results) {
             timestamp: new Date().toISOString()
         });
     }
-    
-    // Helper function to parse performance text and update perfData
+
     function parsePerformanceText(text, data) {
-        // Parse the data using regex
-        // Extract Total Time
+
         const totalTimeMatch = text.match(/Total Time[^\d]*([\d.]+)/i);
         if (totalTimeMatch) data.totalTime = parseFloat(totalTimeMatch[1]);
         
-        // Extract System Time
         const systemTimeMatch = text.match(/System[^\d]*([\d.]+)/i);
         if (systemTimeMatch) data.systemTime = parseFloat(systemTimeMatch[1]);
         
-        // Extract Queries Time and Count
         const queriesMatch = text.match(/Queries:[^\d]*([\d.]+)[^\d]*\((\d+)\)/i);
         if (queriesMatch) {
             data.queriesTime = parseFloat(queriesMatch[1]);
@@ -523,7 +508,6 @@ async function extractPerformanceData(page, url, results) {
         console.log(`   - Queries: ${data.queriesTime}s (${data.queriesCount} queries)`);
     }
     
-    // Helper function to store results
     function storeResults(results, data) {
         if (!results.performanceData) {
             results.performanceData = [];
@@ -536,6 +520,7 @@ async function extractPerformanceData(page, url, results) {
  * Saves performance data to CSV
  * @param {Object} results - Results object containing the performance data
  */
+
 async function savePerformanceDataToCsv(results) {
     if (!results.performanceData || results.performanceData.length === 0) {
         console.log('⚠️ No performance data to save');
@@ -552,8 +537,6 @@ async function savePerformanceDataToCsv(results) {
             { id: 'systemTime', title: 'System Time (s)' },
             { id: 'queriesTime', title: 'Queries Time (s)' },
             { id: 'queriesCount', title: 'Queries Count' },
-            { id: 'rawText', title: 'Raw Performance Text' },
-            { id: 'error', title: 'Error' },
             { id: 'timestamp', title: 'Timestamp' }
         ]
     });
