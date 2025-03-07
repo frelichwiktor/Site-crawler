@@ -16,10 +16,17 @@ Then, install Playwright:
 npx playwright install
 ```
 
-Additionally, install required packages for parsing sitemaps:
+Install required packages for CSV export:
+```bash
+npm install csv-writer
 ```
+
+Additionally, install required packages for parsing sitemaps:
+```bash
 npm install xml2js axios
 ```
+
+
 
 ## Usage
 

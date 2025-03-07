@@ -5,55 +5,54 @@ const path = require('path');
 const readline = require('readline');
 const { parseStringPromise } = require('xml2js');
 const axios = require('axios');
+const { createObjectCsvWriter } = require('csv-writer');
 
 async function main() {
     const startTime = Date.now();
     
     try {
-        // Load credentials first
         const credentials = await loadCredentials();
         
-        // Set up browser
         const browser = await setupBrowser();
         const context = await browser.newContext();
         const page = await context.newPage();
         
-        // Navigate to Page A and click the Public button for the target URL
         console.log("\n--- PHASE 1: Navigating to Switcher ---");
-        const pageASuccess = await navigatePageA(page, config.targetUrls.pageA);
-        if (!pageASuccess) {
+        const switcherSuccess = await navigateToSwitcher(page);
+        if (!switcherSuccess) {
             throw new Error("Failed to complete Switcher navigation");
         }
         
-        // Log in to Page B
         console.log("\n--- PHASE 2: Logging into the Matrix! ---");
-        const pageBSuccess = await loginToPageB(page, credentials.pageB);
-        if (!pageBSuccess) {
+        const matrixSuccess = await loginToMatrix(page, credentials.matrix);
+        if (!matrixSuccess) {
             throw new Error("Failed to log in to Matrix");
         }
         
-        // Continue with normal crawling process
         console.log("\n--- PHASE 3: Starting URL Crawling ---");
         const urls = await getUrlsToProcess();
         
-        // // Force suffix to be _performance for all URLs
-        // console.log("🔧 Adding suffix '/_performance' to all URLs");
-        // const processedUrls = urls.map(url => {
-        //     try {
-        //         const urlObj = new URL(url);
-        //         urlObj.pathname = urlObj.pathname + '/_performance';
-        //         return urlObj.toString();
-        //     } catch (error) {
-        //         console.error(`Failed to add suffix to ${url}: ${error.message}`);
-        //         return url;
-        //     }
-        // });
+        // Always add the _performance suffix regardless of user input from processSuffixOption
+        console.log("🔧 Adding suffix '/_performance' to all URLs");
+        const processedUrls = urls.map(url => {
+            try {
+                const urlObj = new URL(url);
+                urlObj.pathname = urlObj.pathname + '/_performance';
+                return urlObj.toString();
+            } catch (error) {
+                console.error(`Failed to add suffix to ${url}: ${error.message}`);
+                return url;
+            }
+        });
         
         const results = await crawlUrls(browser, context, page, processedUrls);
         
         generateReports(results);
         
         displaySummary(results, startTime);
+        
+        // Save performance data to CSV
+        await savePerformanceDataToCsv(results);
         
         await browser.close();
     } catch (error) {
@@ -63,37 +62,33 @@ async function main() {
 
 main();
 
-// async function loginToPageA(page, credentials) {
-//     console.log("🔑 Logging into Page A...");
+// async function loginToSwitcher(page, credentials) {
+//     console.log("🔑 Logging into Switcher...");
     
 //     try {
-//         // Navigate to Page A
 //         await page.goto(credentials.pageAUrl, { waitUntil: 'domcontentloaded' });
-        
-//         // Fill in credentials
+
 //         await page.fill('input[name="username"]', credentials.username);
 //         await page.fill('input[name="password"]', credentials.password);
         
-//         // Click login button
 //         await page.click('button[type="submit"]');
         
-//         // Wait for navigation to complete
 //         await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
         
-//         console.log("✅ Successfully logged into Page A");
+//         console.log("✅ Successfully logged into Switcher!");
 //         return true;
 //     } catch (error) {
-//         console.error("❌ Failed to log into Page A:", error);
+//         console.error("❌ Failed to log into Switcher:", error);
 //         return false;
 //     }
 // }
 
-async function navigatePageA(page, targetUrl) {
+async function navigateToSwitcher(page, targetUrl) {
     console.log(`🔍 Looking for URL "${targetUrl}" to click Public button...`);
-    
+
     try {
         // Navigate to the switcher page
-        await page.goto(config.pageUrls.pageA, { waitUntil: 'domcontentloaded' });
+        await page.goto(config.pageUrls.switcher, { waitUntil: 'domcontentloaded' });
         console.log("✅ Loaded switcher page");
         
         // Wait for the page to load
@@ -109,7 +104,6 @@ async function navigatePageA(page, targetUrl) {
         });
         console.log(`✅ Clicked Public button for "${targetUrl}"`);
         
-        // Wait for any navigation or changes
         await page.waitForLoadState('networkidle');
         console.log(`✅ DXP is here!`);
         
@@ -119,44 +113,10 @@ async function navigatePageA(page, targetUrl) {
     }
 }
 
-
-async function loginToPageB(page, credentials) {
-    console.log("🔑 Attempting to log into Matrix...");
-    
-    try {
-        // Navigate to Page B
-        await page.goto(config.pageUrls.pageB, { waitUntil: 'domcontentloaded' });
-        
-        // First, verify we're on the right version by checking for "Matrix DXP" span
-        const versionCheck = await page.textContent('#switched-ui-marker');
-        if (!versionCheck || !versionCheck.includes('Matrix DXP')) {
-            throw new Error("❌ Verification failed: Not on the correct Matrix DXP version");
-        }
-        console.log("✅ Verification passed: Matrix DXP version detected");
-        
-        // Fill in credentials
-        await page.fill('input[name="SQ_LOGIN_USERNAME"]', credentials.username);
-        await page.fill('input[name="SQ_LOGIN_PASSWORD"]', credentials.password);
-        
-        // Click login button
-        await page.click('input[type="submit"][value="Log In"]');
-        
-        // Wait for navigation to complete
-        await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
-        
-        console.log("✅ Successfully logged into Matrix!");
-        return true;
-    } catch (error) {
-        console.error("❌ Failed to log into Matrix:", error);
-        return false;
-    }
-}
-
 async function loadCredentials() {
     console.log("🔑 Loading credentials...");
     
     try {
-        // Attempt to load from credentials.js
         const credentials = require('./credentials.js');
         console.log("✅ Credentials loaded from file");
         return credentials;
@@ -164,16 +124,42 @@ async function loadCredentials() {
         console.log("⚠️ credentials.js not found or invalid");
         console.log("ℹ️ Please create credentials.js based on credentials.sample.js");
         
-        // Fall back to prompting
-        const username = await askQuestion("Enter username for Page B: ");
-        const password = await askQuestion("Enter password for Page B: ");
+        const username = await askQuestion("Enter username for Matrix: ");
+        const password = await askQuestion("Enter password for Matrix: ");
         
         return {
-            pageB: {
+            matrix: {
                 username,
                 password
             }
         };
+    }
+}
+
+async function loginToMatrix(page, credentials) {
+    console.log("🔑 Attempting to log into Matrix...");
+    
+    try {
+        await page.goto(config.pageUrls.matrix, { waitUntil: 'domcontentloaded' });
+        
+        const versionCheck = await page.textContent('#switched-ui-marker');
+        if (!versionCheck || !versionCheck.includes('Matrix DXP')) {
+            throw new Error("❌ Verification failed: Not on the Matrix DXP version");
+        }
+        console.log("✅ Verification passed: Matrix DXP version detected");
+        
+        await page.fill('input[name="SQ_LOGIN_USERNAME"]', credentials.username);
+        await page.fill('input[name="SQ_LOGIN_PASSWORD"]', credentials.password);
+        
+        await page.click('input[type="submit"][value="Log In"]');
+        
+        await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+        
+        console.log("✅ Successfully logged into Matrix!");
+        return true;
+    } catch (error) {
+        console.error("❌ Failed to log into Matrix:", error);
+        return false;
     }
 }
 
@@ -254,7 +240,8 @@ async function processSuffixOption(urls) {
     return urls;
 }
 
-async function crawlUrls(browser, urls) {
+async function crawlUrls(browser, context, page, urls) {
+    // Removed: no longer creating context and page here since they're passed as parameters
     // const context = await browser.newContext();
     // const page = await context.newPage();
     
@@ -309,6 +296,9 @@ async function crawlUrls(browser, urls) {
             const pageLoadTime = (Date.now() - pageStartTime) / 1000;
             console.log(`✅ Load Time: ${pageLoadTime.toFixed(2)} seconds`);
 
+            // Extract performance data
+            await extractPerformanceData(page, url, results);
+
             results.pageLoadTimes.push(pageLoadTime);
             results.urlLoadTimes.push({ url, loadTime: pageLoadTime });
 
@@ -328,6 +318,249 @@ async function crawlUrls(browser, urls) {
     }
     
     return results;
+}
+
+/**
+ * Extracts performance data from the result_frame on a performance page
+ * @param {Page} page - Playwright page object
+ * @param {string} url - The URL being processed
+ * @param {Object} results - Results object to store the extracted data
+ */
+async function extractPerformanceData(page, url, results) {
+    try {
+        console.log(`📊 Extracting performance data from ${url}`);
+        
+        // Initialize performance data object
+        const perfData = {
+            url: url,
+            totalTime: null,
+            systemTime: null,
+            queriesTime: null,
+            queriesCount: null,
+            rawText: null,
+            timestamp: new Date().toISOString()
+        };
+        
+        // Wait longer for the page to fully load and stabilize
+        await page.waitForLoadState('networkidle', { timeout: 15000 })
+            .catch(() => console.log('⚠️ Page did not reach network idle state'));
+        
+        // Debug: List all frames on the page
+        const frames = page.frames();
+        console.log(`🔍 Found ${frames.length} frames on the page`);
+        for (const f of frames) {
+            console.log(`   - Frame: name=${f.name()}, url=${f.url()}`);
+        }
+        
+        // Try multiple methods to find the frame
+        console.log(`🔍 Looking for result_frame...`);
+        let frame = null;
+        
+        // Method 1: Try by name
+        frame = page.frame({ name: 'result_frame' });
+        if (frame) {
+            console.log(`✅ Found frame by name: result_frame`);
+        } else {
+            // Method 2: Try by URL pattern
+            frame = page.frames().find(f => f.url().includes('performance_result'));
+            if (frame) {
+                console.log(`✅ Found frame by URL pattern: performance_result`);
+            } else {
+                // Method 3: Try by ID using evaluate
+                const frameElement = await page.evaluate(() => {
+                    const elem = document.getElementById('result_frame');
+                    return elem ? true : false;
+                });
+                
+                if (frameElement) {
+                    console.log(`✅ Found frame element by ID, trying to access content...`);
+                    // Try using frame locator instead
+                    const frameLocator = page.frameLocator('#result_frame');
+                    
+                    // Try to extract using frameLocator
+                    const perfText = await frameLocator.locator('#perfSummary .perfTotal').textContent()
+                        .catch(() => null);
+                    
+                    if (perfText) {
+                        console.log(`✅ Successfully extracted using frameLocator`);
+                        perfData.rawText = perfText.trim();
+                        parsePerformanceText(perfText, perfData);
+                        storeResults(results, perfData);
+                        return;
+                    } else {
+                        console.log(`❌ Could not extract using frameLocator`);
+                    }
+                }
+            }
+        }
+        
+        // If we have a frame, try to extract data from it
+        if (frame) {
+            try {
+                // Wait for the performance data to be visible in the frame
+                console.log(`🔍 Looking for #perfSummary .perfTotal in frame...`);
+                await frame.waitForSelector('#perfSummary .perfTotal', { timeout: 10000 })
+                    .then(() => console.log(`✅ Found #perfSummary .perfTotal in frame`))
+                    .catch(() => console.log(`❌ Could not find #perfSummary .perfTotal in frame`));
+                
+                // Extract the performance data text
+                const perfText = await frame.locator('#perfSummary .perfTotal').textContent()
+                    .catch(() => null);
+                
+                if (perfText) {
+                    console.log(`✅ Successfully extracted text from frame`);
+                    perfData.rawText = perfText.trim();
+                    parsePerformanceText(perfText, perfData);
+                    storeResults(results, perfData);
+                    return;
+                }
+            } catch (frameError) {
+                console.error(`❌ Error accessing frame content: ${frameError.message}`);
+            }
+        }
+        
+        console.log(`⚠️ Could not extract from frame, trying direct page access...`);
+        
+        // Last resort: try to find in main page
+        const mainPagePerfText = await page.locator('#perfSummary .perfTotal').textContent()
+            .catch(() => null);
+        
+        if (mainPagePerfText) {
+            console.log(`✅ Found performance data in main page`);
+            perfData.rawText = mainPagePerfText.trim();
+            parsePerformanceText(mainPagePerfText, perfData);
+            storeResults(results, perfData);
+        } else {
+            // Try one more approach - look for any elements that might contain the info
+            console.log(`🔍 Trying generic approach to find performance data...`);
+            
+            // Take screenshot for debugging
+            await page.screenshot({ path: `${url.replace(/[^a-zA-Z0-9]/g, '_')}.png` })
+                .catch(err => console.log(`Could not take screenshot: ${err.message}`));
+                
+            // Look for any div that might contain our data
+            const anyPerfText = await page.evaluate(() => {
+                // Try various selectors that might contain performance data
+                const selectors = [
+                    '.perfTotal', 
+                    '[id*="perf"]', 
+                    '[class*="perf"]',
+                    'div:contains("Total Time")',
+                    'div:contains("Queries:")'
+                ];
+                
+                for (const selector of selectors) {
+                    try {
+                        const elements = document.querySelectorAll(selector);
+                        for (const el of elements) {
+                            if (el.textContent.includes('Total Time') && 
+                                el.textContent.includes('System') && 
+                                el.textContent.includes('Queries')) {
+                                return el.textContent;
+                            }
+                        }
+                    } catch (e) {
+                        // Ignore errors with individual selectors
+                    }
+                }
+                
+                // Try to find element with text that looks like performance data
+                const allDivs = document.querySelectorAll('div');
+                for (const div of allDivs) {
+                    const text = div.textContent;
+                    if (text.includes('Total Time') && 
+                        text.includes('System') && 
+                        text.includes('Queries')) {
+                        return text;
+                    }
+                }
+                
+                return null;
+            }).catch(() => null);
+            
+            if (anyPerfText) {
+                console.log(`✅ Found performance-like data using generic approach`);
+                perfData.rawText = anyPerfText.trim();
+                parsePerformanceText(anyPerfText, perfData);
+                storeResults(results, perfData);
+            } else {
+                console.log(`❌ Performance data not found using any method`);
+                storeResults(results, perfData);
+            }
+        }
+    } catch (error) {
+        console.error(`❌ Error extracting performance data: ${error.message}`);
+        
+        // Record the error in results
+        storeResults(results, {
+            url: url,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    // Helper function to parse performance text and update perfData
+    function parsePerformanceText(text, data) {
+        // Parse the data using regex
+        // Extract Total Time
+        const totalTimeMatch = text.match(/Total Time[^\d]*([\d.]+)/i);
+        if (totalTimeMatch) data.totalTime = parseFloat(totalTimeMatch[1]);
+        
+        // Extract System Time
+        const systemTimeMatch = text.match(/System[^\d]*([\d.]+)/i);
+        if (systemTimeMatch) data.systemTime = parseFloat(systemTimeMatch[1]);
+        
+        // Extract Queries Time and Count
+        const queriesMatch = text.match(/Queries:[^\d]*([\d.]+)[^\d]*\((\d+)\)/i);
+        if (queriesMatch) {
+            data.queriesTime = parseFloat(queriesMatch[1]);
+            data.queriesCount = parseInt(queriesMatch[2], 10);
+        }
+        
+        console.log(`📊 Parsed performance data:`);
+        console.log(`   - Total Time: ${data.totalTime}s`);
+        console.log(`   - System Time: ${data.systemTime}s`);
+        console.log(`   - Queries: ${data.queriesTime}s (${data.queriesCount} queries)`);
+    }
+    
+    // Helper function to store results
+    function storeResults(results, data) {
+        if (!results.performanceData) {
+            results.performanceData = [];
+        }
+        results.performanceData.push(data);
+    }
+}
+
+/**
+ * Saves performance data to CSV
+ * @param {Object} results - Results object containing the performance data
+ */
+async function savePerformanceDataToCsv(results) {
+    if (!results.performanceData || results.performanceData.length === 0) {
+        console.log('⚠️ No performance data to save');
+        return;
+    }
+    
+    const csvFilePath = path.join(config.directories.output, 'performance-data.csv');
+    
+    const csvWriter = createObjectCsvWriter({
+        path: csvFilePath,
+        header: [
+            { id: 'url', title: 'URL' },
+            { id: 'totalTime', title: 'Total Time (s)' },
+            { id: 'systemTime', title: 'System Time (s)' },
+            { id: 'queriesTime', title: 'Queries Time (s)' },
+            { id: 'queriesCount', title: 'Queries Count' },
+            { id: 'rawText', title: 'Raw Performance Text' },
+            { id: 'error', title: 'Error' },
+            { id: 'timestamp', title: 'Timestamp' }
+        ]
+    });
+    
+    await csvWriter.writeRecords(results.performanceData);
+    
+    console.log(`📄 Performance data saved to CSV: ${csvFilePath}`);
 }
 
 function generateReports(results) {

@@ -36,7 +36,7 @@ module.exports = {
     
 // In config.js, update the pageUrls section:
     pageUrls: {
-        pageA: 'https://cardiff.ac.uk/__streamline/switcher/',
-        pageB: 'https://www.cardiff.ac.uk/_admin/?FORCE_BACKUP_LOGIN=1'
+        switcher: 'https://cardiff.ac.uk/__streamline/switcher/',
+        matrix: 'https://www.cardiff.ac.uk/_admin/?FORCE_BACKUP_LOGIN=1'
     }
 };

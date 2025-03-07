@@ -6,3 +6,5 @@ node_modules/
 /playwright/.cache/
 # Credentials file (contains sensitive information)
 credentials.js
+#other files
+/URLs/performance-data.csv
