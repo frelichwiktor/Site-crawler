@@ -7,11 +7,15 @@ const { parseStringPromise } = require('xml2js');
 const axios = require('axios');
 const { createObjectCsvWriter } = require('csv-writer');
 
+let csvWriter = null;
+
 async function main() {
     const startTime = Date.now();
     
     try {
         const credentials = await loadCredentials();
+        
+        await initializeCsvWriter();
         
         const browser = await setupBrowser();
         const context = await browser.newContext();
@@ -50,7 +54,7 @@ async function main() {
         
         displaySummary(results, startTime);
         
-        await savePerformanceDataToCsv(results);
+        console.log(`📄 All performance data was saved incrementally during crawling`);
         
         await browser.close();
     } catch (error) {
@@ -59,6 +63,43 @@ async function main() {
 }
 
 main();
+
+async function initializeCsvWriter() {
+    const csvFilePath = path.join(config.directories.output, 'performance-data.csv');
+    
+    if (!fs.existsSync(config.directories.output)) {
+        fs.mkdirSync(config.directories.output);
+    }
+    
+    const fileExists = fs.existsSync(csvFilePath);
+    
+    csvWriter = createObjectCsvWriter({
+        path: csvFilePath,
+        header: [
+            { id: 'url', title: 'URL' },
+            { id: 'totalTime', title: 'Total Time (s)' },
+            { id: 'systemTime', title: 'System Time (s)' },
+            { id: 'queriesTime', title: 'Queries Time (s)' },
+            { id: 'queriesCount', title: 'Queries Count' },
+            { id: 'timestamp', title: 'Timestamp' }
+        ],
+    });
+    
+    console.log(`📝 CSV writer initialized: ${csvFilePath}`);
+}
+
+async function savePerformanceRecord(record) {
+    if (!csvWriter) {
+        console.error('❌ CSV writer not initialized!');
+        return;
+    }
+    
+    try {
+        await csvWriter.writeRecords([record]);
+    } catch (error) {
+        console.error(`❌ Error saving CSV record: ${error.message}`);
+    }
+}
 
 async function navigateToSwitcher(page) {
     console.log(`🔍 Looking for URL "${config.urlToFind.pageToFind}" to click Public button...`);
@@ -79,6 +120,7 @@ async function navigateToSwitcher(page) {
         });
         console.log(`✅ Clicked Public button for ${config.urlToFind.pageToFind}.`);
         
+        console.log(`... Waiting for page to load ...`);
         await page.waitForLoadState('networkidle');
         console.log(`✅ DXP is here!`);
         
@@ -241,7 +283,8 @@ async function crawlUrls(browser, context, page, urls) {
         notFoundUrls: [],
         serverErrorUrls: [],
         pageLoadTimes: [],
-        urlLoadTimes: []
+        urlLoadTimes: [],
+        performanceData: [] // We'll still keep this for reference, but save incrementally
     };
     
     for (const url of urls) {
@@ -470,7 +513,6 @@ async function extractPerformanceData(page, url, results) {
     }
 
     function parsePerformanceText(text, data) {
-
         const totalTimeMatch = text.match(/Total Time[^\d]*([\d.]+)/i);
         if (totalTimeMatch) data.totalTime = parseFloat(totalTimeMatch[1]);
         
@@ -489,42 +531,54 @@ async function extractPerformanceData(page, url, results) {
         console.log(`   - Queries: ${data.queriesTime}s (${data.queriesCount} queries)`);
     }
     
+    // Modified storeResults function to save data immediately
     function storeResults(results, data) {
         if (!results.performanceData) {
             results.performanceData = [];
         }
         results.performanceData.push(data);
+        
+        // Save the data immediately
+        savePerformanceRecord(data).catch(err => 
+            console.error(`Failed to save performance record: ${err.message}`));
     }
 }
 
 /**
- * Saves performance data to CSV
+ * Saves performance data to CSV - now used as a backup/fallback method
  * @param {Object} results - Results object containing the performance data
  */
-
 async function savePerformanceDataToCsv(results) {
     if (!results.performanceData || results.performanceData.length === 0) {
         console.log('⚠️ No performance data to save');
         return;
     }
     
-    const csvFilePath = path.join(config.directories.output, 'performance-data.csv');
+    console.log(`📄 Saving ${results.performanceData.length} performance records as backup...`);
     
-    const csvWriter = createObjectCsvWriter({
-        path: csvFilePath,
-        header: [
-            { id: 'url', title: 'URL' },
-            { id: 'totalTime', title: 'Total Time (s)' },
-            { id: 'systemTime', title: 'System Time (s)' },
-            { id: 'queriesTime', title: 'Queries Time (s)' },
-            { id: 'queriesCount', title: 'Queries Count' },
-            { id: 'timestamp', title: 'Timestamp' }
-        ]
-    });
+    if (csvWriter) {
+        // Use existing writer
+        await csvWriter.writeRecords(results.performanceData);
+    } else {
+        // Initialize a new writer (fallback)
+        const csvFilePath = path.join(config.directories.output, 'performance-data.csv');
+        
+        const tempCsvWriter = createObjectCsvWriter({
+            path: csvFilePath,
+            header: [
+                { id: 'url', title: 'URL' },
+                { id: 'totalTime', title: 'Total Time (s)' },
+                { id: 'systemTime', title: 'System Time (s)' },
+                { id: 'queriesTime', title: 'Queries Time (s)' },
+                { id: 'queriesCount', title: 'Queries Count' },
+                { id: 'timestamp', title: 'Timestamp' }
+            ]
+        });
+        
+        await tempCsvWriter.writeRecords(results.performanceData);
+    }
     
-    await csvWriter.writeRecords(results.performanceData);
-    
-    console.log(`📄 Performance data saved to CSV: ${csvFilePath}`);
+    console.log(`📄 Performance data backup saved to CSV`);
 }
 
 function generateReports(results) {
