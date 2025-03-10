@@ -15,17 +15,18 @@ async function main() {
     try {
         const credentials = await loadCredentials();
         
+        const domain = await setupDomain();
+        
         await initializeCsvWriter();
         
         const browser = await setupBrowser();
         const context = await browser.newContext();
         const page = await context.newPage();
         
-        //Adding a cookie at the beginning in order to bypass the switcher
         await context.addCookies([{
             name: 'SUP_COOKIE',
             value: 'new',
-            domain: 'www.yourdomain.com', // Replace with your actual domain
+            domain: domain,
             path: '/',
             httpOnly: true,
             secure: false
@@ -92,6 +93,45 @@ async function initializeCsvWriter() {
     console.log(`📝 CSV writer initialized: ${csvFilePath}`);
 }
 
+async function setupDomain() {
+    const userInput = await askQuestion("Enter the domain or URL (e.g., www.example.com or https://www.example.com/): ");
+
+    let domain;
+    let baseUrl;
+    
+    try {
+        if (userInput.includes('://')) {
+            const urlObj = new URL(userInput);
+            domain = urlObj.hostname; // Just the hostname for the cookie
+            baseUrl = `${urlObj.protocol}//${urlObj.hostname}`; // Protocol + hostname for matrix URL
+        } else {
+            domain = userInput.trim().replace(/\/$/, ''); // Remove any trailing slash
+            baseUrl = `https://${domain}`; // Assume https
+        }
+        
+        // Strip any trailing slashes
+        if (domain.endsWith('/')) {
+            domain = domain.slice(0, -1);
+        }
+        
+        console.log(`✅ Domain extracted for cookie: ${domain}`);
+        console.log(`✅ Base URL for Matrix: ${baseUrl}`);
+        
+        // Set in config
+        config.domain = domain;
+        config.pageUrls.matrix = `${baseUrl}/_admin/?FORCE_BACKUP_LOGIN=1`;
+        
+        return domain;
+    } catch (error) {
+        console.error(`❌ Error parsing domain: ${error.message}`);
+        // Fallback to direct input if parsing fails
+        console.log(`⚠️ Using input directly: ${userInput}`);
+        domain = userInput.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        config.domain = domain;
+        config.pageUrls.matrix = `https://${domain}/_admin/?FORCE_BACKUP_LOGIN=1`;
+        return domain;
+    }
+}
 async function savePerformanceRecord(record) {
     if (!csvWriter) {
         console.error('❌ CSV writer not initialized!');
@@ -566,22 +606,6 @@ function generateReports(results) {
             results.serverErrorUrls.join('\n')
         );
         console.log(`📌 500 Internal Server Error URLs saved to '${config.directories.output}/${config.directories.reports.serverError}'`);
-    }
-
-    const sortedLoadTimes = [...results.urlLoadTimes].sort((a, b) => b.loadTime - a.loadTime);
-    const slowestPagesCount = Math.ceil(results.urlLoadTimes.length * config.performance.slowestPercentage);
-    const slowestPages = sortedLoadTimes.slice(0, slowestPagesCount);
-
-    if (slowestPages.length > 0) {
-        const slowPagesContent = slowestPages
-            .map(item => `${item.url} - ${item.loadTime.toFixed(2)} seconds`)
-            .join('\n');
-            
-        fs.writeFileSync(
-            path.join(config.directories.output, config.directories.reports.slowest),
-            slowPagesContent
-        );
-        console.log(`📌 Slowest pages (top ${config.performance.slowestPercentage * 100}%) saved to '${config.directories.output}/${config.directories.reports.slowest}'`);
     }
 }
 

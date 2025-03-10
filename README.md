@@ -44,7 +44,11 @@ node crawler.js
 
 ### Input Options
 
-After running the script, you will be prompted to choose one of the following options:
+After running the script you will be asked to provide the domain for the Matrix and a Cookie:
+
+**Enter the domain or URL (e.g., www.example.com or https://www.example.com/)**
+
+Then you will be prompted to choose one of the following options:
 
 1. **Crawl URLs from a `txt` file** – Reads URLs from `URLs/urls.txt`.
 2. **Crawl URLs from a sitemap** – Extracts URLs from a provided XML sitemap.
@@ -119,26 +123,12 @@ module.exports = {
     
     // Performance settings, not related to the /_performance tab
     performance: {
-        slowestPercentage: 0.1,    // Top 10%
         sitemapFetchTimeout: 10000 // 10 seconds
     },
     
-    // Default cookie settings
-    defaultCookie: {
-        name: 'name',
-        value: 'value',
-        path: '/',
-        httpOnly: true,
-        secure: false
-    }
-
-    urlToFind: {
-        pageToFind: 'the site for which we want to change the version to DXP'
-    },
-    
+    domain: '',
     pageUrls: {
-        switcher: 'Link to the switcher',
-        matrix: 'Link to the Matrix login page, with /_admin?FORCE_BACKUP_LOGIN=1'
+        matrix: ''
     }
 };
 ```
@@ -146,21 +136,20 @@ module.exports = {
 This allows you to easily adjust:
 - Browser behavior and timeouts
 - Output directories and file names
-- Performance analysis thresholds
-- Default cookie values
 
 ### Cookie Configuration
 
-If you need to pass specific cookies, modify the `defaultCookie` object in `config.js`:
+If you need to pass specific cookies, modify the `addCookies` object in `main ()`:
 
 ```javascript
-defaultCookie: {
-    name: 'name',
+await context.addCookies([{
+    name: 'cookie name',
     value: 'value',
+    domain: domain,
     path: '/',
     httpOnly: true,
     secure: false
-}
+    }]);
 ```
 
 ### Timeout Settings
@@ -184,16 +173,6 @@ Results are saved in the output directory specified in the config (default is `U
 - `urls-failed.txt` – URLs that failed to load.
 - `urls-404.txt` – URLs that returned a `404 Not Found` response.
 - `urls-500.txt` – URLs that returned a `500 Internal Server Error` response.
-- `slowest-pages.txt` – List of the slowest pages (percentage configurable) with their load times.
-
-### Performance Analysis
-
-The crawler includes performance monitoring features:
-
-- Tracks individual page load times.
-- Calculates average load time across all successfully loaded pages.
-- Identifies and reports the slowest pages (configurable percentage, default 10%).
-- Format of slowest-pages.txt: "URL - time in seconds".
 
 ### Summary Report
 
@@ -205,7 +184,6 @@ At the end of each run, a summary is displayed, including:
 - Sites with errors
 - `404 Not Found` pages
 - `500 Internal Server Error` pages
-- Average page load time
 - Total execution time
 
 ## Project Structure

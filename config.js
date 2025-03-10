@@ -17,16 +17,11 @@ module.exports = {
     },
     
     performance: {
-        slowestPercentage: 0.1,
         sitemapFetchTimeout: 10000
     },
     
-    urlToFind: {
-        pageToFind: 'The site for which we want to change the version to DXP'
-    },
-    
+    domain: '',
     pageUrls: {
-        switcher: 'Link to the switcher',
-        matrix: 'Link to the Matrix login page, with /_admin?FORCE_BACKUP_LOGIN=1'
+        matrix: ''
     }
 };
