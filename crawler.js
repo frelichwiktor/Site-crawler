@@ -32,7 +32,6 @@ async function main() {
         console.log("\n--- PHASE 3: Starting URL Crawling ---");
         const urls = await getUrlsToProcess();
         
-        // Always add the _performance suffix regardless of user input from processSuffixOption
         console.log("🔧 Adding suffix '/_performance' to all URLs");
         const processedUrls = urls.map(url => {
             try {
@@ -60,27 +59,6 @@ async function main() {
 }
 
 main();
-
-// async function loginToSwitcher(page, credentials) {
-//     console.log("🔑 Logging into Switcher...");
-    
-//     try {
-//         await page.goto(credentials.pageAUrl, { waitUntil: 'domcontentloaded' });
-
-//         await page.fill('input[name="username"]', credentials.username);
-//         await page.fill('input[name="password"]', credentials.password);
-        
-//         await page.click('button[type="submit"]');
-        
-//         await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
-        
-//         console.log("✅ Successfully logged into Switcher!");
-//         return true;
-//     } catch (error) {
-//         console.error("❌ Failed to log into Switcher:", error);
-//         return false;
-//     }
-// }
 
 async function navigateToSwitcher(page) {
     console.log(`🔍 Looking for URL "${config.urlToFind.pageToFind}" to click Public button...`);
@@ -139,11 +117,14 @@ async function loginToMatrix(page, credentials) {
     try {
         await page.goto(config.pageUrls.matrix, { waitUntil: 'domcontentloaded' });
         
-        const versionCheck = await page.textContent('#switched-ui-marker');
-        if (!versionCheck || !versionCheck.includes('Matrix DXP')) {
-            throw new Error("❌ Verification failed: Not on the Matrix DXP version");
+        const versionCheckElement = await page.waitForSelector('#switched-ui-marker, #streamline-ui-marker');
+        const versionCheck = versionCheckElement ? await versionCheckElement.textContent() : null;
+        
+        if (!versionCheck || (!versionCheck.includes('Matrix DXP') && !versionCheck.includes('DXP SaaS'))) {
+            throw new Error("❌ Verification failed: Not on the correct DXP version (Matrix DXP or DXP SaaS)");
         }
-        console.log("✅ Verification passed: Matrix DXP version detected");
+        
+        console.log("✅ Verification passed: Correct DXP version detected");
         
         await page.fill('input[name="SQ_LOGIN_USERNAME"]', credentials.username);
         await page.fill('input[name="SQ_LOGIN_PASSWORD"]', credentials.password);

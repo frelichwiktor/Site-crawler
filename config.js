@@ -30,11 +30,11 @@ module.exports = {
     },
     
     urlToFind: {
-        pageToFind: 'https://www.cardiff.ac.uk'
+        pageToFind: 'The site for which we want to change the version to DXP'
     },
     
     pageUrls: {
-        switcher: 'https://cardiff.ac.uk/__streamline/switcher/',
-        matrix: 'https://www.cardiff.ac.uk/_admin/?FORCE_BACKUP_LOGIN=1'
+        switcher: 'Link to the switcher',
+        matrix: 'Link to the Matrix login page, with /_admin?FORCE_BACKUP_LOGIN=1'
     }
 };

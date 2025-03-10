@@ -1,6 +1,14 @@
-# Basic site crawler
+# Site crawler
 
-This is a basic site crawler that visits websites either from a provided text file (urls.txt), an XML sitemap, or both. It checks if the DOM content is loaded and logs any issues encountered. Additionally, the crawler detects 404 Not Found errors, 500 Internal Server Errors, and analyzes page load performance metrics, saving the results in separate files.
+This is a robust site crawler that visits websites either from a provided text file (urls.txt), an XML sitemap, or both. It authenticates through the Matrix DXP system, checks if the DOM content is loaded, and logs any issues encountered along the way.
+
+The crawler provides comprehensive monitoring capabilities including:
+- Immediate CSV logging of performance data for each page (resilient to crashes)
+- Detection of 404 Not Found errors and 500 Internal Server Errors
+- Real-time analysis of page load performance metrics
+- Custom URL suffix support for testing cache behavior
+
+Performance data is saved incrementally after each page is crawled, ensuring no data loss even if the program terminates unexpectedly. Results are organized in separate files for easy analysis, with a detailed summary provided upon completion.
 
 ## Installation
 
@@ -21,12 +29,10 @@ Install required packages for CSV export:
 npm install csv-writer
 ```
 
-Additionally, install required packages for parsing sitemaps:
+Install required packages for parsing sitemaps:
 ```bash
 npm install xml2js axios
 ```
-
-
 
 ## Usage
 
@@ -111,7 +117,7 @@ module.exports = {
         }
     },
     
-    // Performance settings
+    // Performance settings, not related to the /_performance tab
     performance: {
         slowestPercentage: 0.1,    // Top 10%
         sitemapFetchTimeout: 10000 // 10 seconds
@@ -124,6 +130,15 @@ module.exports = {
         path: '/',
         httpOnly: true,
         secure: false
+    }
+
+    urlToFind: {
+        pageToFind: 'the site for which we want to change the version to DXP'
+    },
+    
+    pageUrls: {
+        switcher: 'Link to the switcher',
+        matrix: 'Link to the Matrix login page, with /_admin?FORCE_BACKUP_LOGIN=1'
     }
 };
 ```
@@ -164,6 +179,7 @@ browser: {
 
 Results are saved in the output directory specified in the config (default is `URLs/` folder):
 
+- `performance-data.csv` – Performance data gathered from /_performance tab of each page.
 - `urls-crawled.txt` – Successfully crawled URLs.
 - `urls-failed.txt` – URLs that failed to load.
 - `urls-404.txt` – URLs that returned a `404 Not Found` response.
@@ -194,7 +210,7 @@ At the end of each run, a summary is displayed, including:
 
 ## Project Structure
 
-The project now follows a modular approach:
+The project follows a modular approach:
 
 - `crawler.js` - Main application with code organized into focused functions
 - `config.js` - Configuration settings
