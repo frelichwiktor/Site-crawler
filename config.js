@@ -21,14 +21,6 @@ module.exports = {
         sitemapFetchTimeout: 10000
     },
     
-    defaultCookie: {
-        name: 'name',
-        value: 'value',
-        path: '/',
-        httpOnly: true,
-        secure: false
-    },
-    
     urlToFind: {
         pageToFind: 'The site for which we want to change the version to DXP'
     },

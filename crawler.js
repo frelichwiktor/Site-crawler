@@ -21,19 +21,23 @@ async function main() {
         const context = await browser.newContext();
         const page = await context.newPage();
         
-        console.log("\n--- PHASE 1: Navigating to Switcher ---");
-        const switcherSuccess = await navigateToSwitcher(page);
-        if (!switcherSuccess) {
-            throw new Error("Failed to complete Switcher navigation");
-        }
+        //Adding a cookie at the beginning in order to bypass the switcher
+        await context.addCookies([{
+            name: 'SUP_COOKIE',
+            value: 'new',
+            domain: 'www.yourdomain.com', // Replace with your actual domain
+            path: '/',
+            httpOnly: true,
+            secure: false
+        }]);
         
-        console.log("\n--- PHASE 2: Logging into the Matrix! ---");
+        console.log("\n--- PHASE 1: Logging into the Matrix! ---");
         const matrixSuccess = await loginToMatrix(page, credentials.matrix);
         if (!matrixSuccess) {
             throw new Error("Failed to log in to Matrix");
         }
         
-        console.log("\n--- PHASE 3: Starting URL Crawling ---");
+        console.log("\n--- PHASE 2: Starting URL Crawling ---");
         const urls = await getUrlsToProcess();
         
         console.log("🔧 Adding suffix '/_performance' to all URLs");
@@ -98,35 +102,6 @@ async function savePerformanceRecord(record) {
         await csvWriter.writeRecords([record]);
     } catch (error) {
         console.error(`❌ Error saving CSV record: ${error.message}`);
-    }
-}
-
-async function navigateToSwitcher(page) {
-    console.log(`🔍 Looking for URL "${config.urlToFind.pageToFind}" to click Public button...`);
-
-    try {
-        await page.goto(config.pageUrls.switcher, { waitUntil: 'domcontentloaded' });
-        console.log("✅ Loaded switcher page");
-        
-        await page.waitForSelector('#switcher', { timeout: 30000 });
-        console.log("✅ Switcher is visible");
-
-        await page.locator('#sup-urls div').filter({ hasText: `URL: ${config.urlToFind.pageToFind} Public Admin` })
-        .getByRole('link')
-        .first()
-        .evaluate((link) => {
-            link.removeAttribute('target');  // Remove the 'target' attribute
-            link.click(); // Perform the click
-        });
-        console.log(`✅ Clicked Public button for ${config.urlToFind.pageToFind}.`);
-        
-        console.log(`... Waiting for page to load ...`);
-        await page.waitForLoadState('networkidle');
-        console.log(`✅ DXP is here!`);
-        
-        return true;
-    } catch (error) {
-        console.error(`❌ Failed to navigate Switcher:`, error);
     }
 }
 
@@ -265,13 +240,6 @@ async function crawlUrls(browser, context, page, urls) {
     page.setDefaultTimeout(config.browser.defaultTimeout);
     page.setDefaultNavigationTimeout(config.browser.navigationTimeout);
     
-    const uniqueHosts = [...new Set(urls.map(url => new URL(url).host))];
-    const cookies = uniqueHosts.map(host => ({
-        ...config.defaultCookie,
-        domain: '.' + host
-    }));
-    await context.addCookies(cookies);
-    
     const results = {
         crawledCount: 0,
         successfulCount: 0,
@@ -311,13 +279,7 @@ async function crawlUrls(browser, context, page, urls) {
                 continue;
             }
 
-            const pageLoadTime = (Date.now() - pageStartTime) / 1000;
-            console.log(`✅ Load Time: ${pageLoadTime.toFixed(2)} seconds`);
-
             await extractPerformanceData(page, url, results);
-
-            results.pageLoadTimes.push(pageLoadTime);
-            results.urlLoadTimes.push({ url, loadTime: pageLoadTime });
 
             results.successfulCount++;
             fs.appendFileSync(path.join(config.directories.output, 'urls-crawled.txt'), url + '\n');
@@ -624,9 +586,6 @@ function generateReports(results) {
 }
 
 function displaySummary(results, startTime) {
-    const averageLoadTime = results.pageLoadTimes.length > 0 
-        ? (results.pageLoadTimes.reduce((a, b) => a + b, 0) / results.pageLoadTimes.length).toFixed(2)
-        : 0;
         
     console.log(`\n📊 Crawl Summary:`);
     console.log(`✅ Total Sites Crawled: ${results.crawledCount}`);
@@ -635,7 +594,6 @@ function displaySummary(results, startTime) {
     console.log(`❌ Sites with Error: ${results.errorCount}`);
     console.log(`🚫 404 Not Found Pages: ${results.notFoundCount}`);
     console.log(`🚨 500 Internal Server Errors: ${results.serverErrorCount}`);
-    console.log(`⏱️ Average Load Time: ${averageLoadTime} seconds`);
 
     const totalTimeTaken = (Date.now() - startTime) / 1000 / 60;
     console.log(`\n⏳ Total Time: ${totalTimeTaken.toFixed(2)} minutes`);
