@@ -1,5 +1,5 @@
 const config = require('./config');
-const { chromium, selectors } = require('playwright');
+const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
@@ -17,23 +17,31 @@ async function main() {
         
         const domain = await setupDomain();
         
-        await initializeCsvWriter();
+        const versionChoice = await askQuestion("Do you want to run the crawler for PROD or DXP version? (prod/dxp): ");
+        const isDxpVersion = versionChoice.toLowerCase() === 'dxp';
+
+        const csvFilePath = await initializeCsvWriter(domain, isDxpVersion);
         
         const browser = await setupBrowser();
         const context = await browser.newContext();
         const page = await context.newPage();
         
-        await context.addCookies([{
-            name: 'SUP_COOKIE',
-            value: 'new',
-            domain: domain,
-            path: '/',
-            httpOnly: true,
-            secure: false
-        }]);
+        if (isDxpVersion) {
+            console.log("🍪 Adding DXP cookie...");
+            await context.addCookies([{
+                name: 'SUP_COOKIE',
+                value: 'new',
+                domain: domain,
+                path: '/',
+                httpOnly: true,
+                secure: false
+            }]);
+        } else {
+            console.log("🚫 No cookie added (PROD version)");
+        }
         
         console.log("\n--- PHASE 1: Logging into the Matrix! ---");
-        const matrixSuccess = await loginToMatrix(page, credentials.matrix);
+        const matrixSuccess = await loginToMatrix(page, credentials.matrix, isDxpVersion);
         if (!matrixSuccess) {
             throw new Error("Failed to log in to Matrix");
         }
@@ -67,30 +75,27 @@ async function main() {
     }
 }
 
-main();
-
-async function initializeCsvWriter() {
-    const csvFilePath = path.join(config.directories.output, 'performance-data.csv');
+async function loadCredentials() {
+    console.log("🔑 Loading credentials...");
     
-    if (!fs.existsSync(config.directories.output)) {
-        fs.mkdirSync(config.directories.output);
+    try {
+        const credentials = require('./credentials.js');
+        console.log("✅ Credentials loaded from file");
+        return credentials;
+    } catch (error) {
+        console.log("⚠️ credentials.js not found or invalid");
+        console.log("ℹ️ Please create credentials.js based on credentials.sample.js");
+        
+        const username = await askQuestion("Enter username for Matrix: ");
+        const password = await askQuestion("Enter password for Matrix: ");
+        
+        return {
+            matrix: {
+                username,
+                password
+            }
+        };
     }
-    
-    const fileExists = fs.existsSync(csvFilePath);
-    
-    csvWriter = createObjectCsvWriter({
-        path: csvFilePath,
-        header: [
-            { id: 'url', title: 'URL' },
-            { id: 'totalTime', title: 'Total Time (s)' },
-            { id: 'systemTime', title: 'System Time (s)' },
-            { id: 'queriesTime', title: 'Queries Time (s)' },
-            { id: 'queriesCount', title: 'Queries Count' },
-            { id: 'timestamp', title: 'Timestamp' }
-        ],
-    });
-    
-    console.log(`📝 CSV writer initialized: ${csvFilePath}`);
 }
 
 async function setupDomain() {
@@ -132,56 +137,84 @@ async function setupDomain() {
         return domain;
     }
 }
-async function savePerformanceRecord(record) {
-    if (!csvWriter) {
-        console.error('❌ CSV writer not initialized!');
-        return;
-    }
-    
-    try {
-        await csvWriter.writeRecords([record]);
-    } catch (error) {
-        console.error(`❌ Error saving CSV record: ${error.message}`);
-    }
+
+function askQuestion(query) {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+    });
+
+    return new Promise(resolve => rl.question(query, answer => {
+        rl.close();
+        resolve(answer.trim().toLowerCase());
+    }));
 }
 
-async function loadCredentials() {
-    console.log("🔑 Loading credentials...");
+async function initializeCsvWriter(domain, isDxpVersion) {
+    const cleanDomain = domain.replace(/^https?:\/\//i, '')
+                             .replace(/^www\./i, '')
+                             .replace(/[^\w.-]/g, '-');
     
-    try {
-        const credentials = require('./credentials.js');
-        console.log("✅ Credentials loaded from file");
-        return credentials;
-    } catch (error) {
-        console.log("⚠️ credentials.js not found or invalid");
-        console.log("ℹ️ Please create credentials.js based on credentials.sample.js");
-        
-        const username = await askQuestion("Enter username for Matrix: ");
-        const password = await askQuestion("Enter password for Matrix: ");
-        
-        return {
-            matrix: {
-                username,
-                password
-            }
-        };
+    const currentDate = new Date().toISOString().split('T')[0];
+    
+    const environment = isDxpVersion ? 'dxp' : 'prod';
+    const filename = `${cleanDomain}-${environment}-${currentDate}.csv`;
+    
+    const reportsDir = 'reports';
+    if (!fs.existsSync(reportsDir)) {
+        fs.mkdirSync(reportsDir);
     }
+    
+    const csvFilePath = path.join(reportsDir, filename);
+    
+    csvWriter = createObjectCsvWriter({
+        path: csvFilePath,
+        header: [
+            { id: 'url', title: 'URL' },
+            { id: 'totalTime', title: 'Total Time (s)' },
+            { id: 'systemTime', title: 'System Time (s)' },
+            { id: 'queriesTime', title: 'Queries Time (s)' },
+            { id: 'queriesCount', title: 'Queries Count' },
+            { id: 'timestamp', title: 'Timestamp' }
+        ],
+    });
+    
+    console.log(`📝 CSV writer initialized: ${csvFilePath}`);
+    return csvFilePath;
 }
 
-async function loginToMatrix(page, credentials) {
+async function setupBrowser() {
+    const browser = await chromium.launch({ 
+        headless: config.browser.headless 
+    });
+    
+    process.on('SIGINT', function () {
+        console.warn(' 🚨 Crawling stopped...');
+        process.exit();
+    });
+    
+    return browser;
+}
+
+async function loginToMatrix(page, credentials, isDxpVersion = true) {
     console.log("🔑 Attempting to log into Matrix...");
     
     try {
         await page.goto(config.pageUrls.matrix, { waitUntil: 'domcontentloaded' });
         
-        const versionCheckElement = await page.waitForSelector('#switched-ui-marker, #streamline-ui-marker');
-        const versionCheck = versionCheckElement ? await versionCheckElement.textContent() : null;
-        
-        if (!versionCheck || (!versionCheck.includes('Matrix DXP') && !versionCheck.includes('DXP SaaS'))) {
-            throw new Error("❌ Verification failed: Not on the correct DXP version (Matrix DXP or DXP SaaS)");
+        if (isDxpVersion) {
+            console.log("🧪 Performing DXP version check...");
+            const versionCheckElement = await page.waitForSelector('#switched-ui-marker, #streamline-ui-marker');
+            const versionCheck = versionCheckElement ? await versionCheckElement.textContent() : null;
+            
+            if (!versionCheck || (!versionCheck.includes('Matrix DXP') && !versionCheck.includes('DXP SaaS'))) {
+                throw new Error("❌ Verification failed: Not on the correct DXP version (Matrix DXP or DXP SaaS)");
+            }
+            
+            console.log("✅ Verification passed: Correct DXP version detected");
+        } else {
+            console.log("🚫 Skipping DXP version check (PROD mode)");
         }
-        
-        console.log("✅ Verification passed: Correct DXP version detected");
         
         await page.fill('input[name="SQ_LOGIN_USERNAME"]', credentials.username);
         await page.fill('input[name="SQ_LOGIN_PASSWORD"]', credentials.password);
@@ -196,19 +229,6 @@ async function loginToMatrix(page, credentials) {
         console.error("❌ Failed to log into Matrix:", error);
         return false;
     }
-}
-
-async function setupBrowser() {
-    const browser = await chromium.launch({ 
-        headless: config.browser.headless 
-    });
-    
-    process.on('SIGINT', function () {
-        console.warn(' 🚨 Crawling stopped...');
-        process.exit();
-    });
-    
-    return browser;
 }
 
 async function getUrlsToProcess() {
@@ -275,8 +295,52 @@ async function processSuffixOption(urls) {
     return urls;
 }
 
+function getUrlsFromFile() {
+    const filePath = path.join(config.directories.output, 'urls.txt');
+    if (!fs.existsSync(filePath)) return [];
+
+    return fs.readFileSync(filePath, 'utf-8')
+        .split('\n')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+}
+
+async function extractUrlsFromSitemap(url) {
+    try {
+        console.log(`📥 Fetching sitemap: ${url}`);
+        const response = await axios.get(url, { 
+            timeout: config.performance.sitemapFetchTimeout 
+        });
+        const xmlData = response.data;
+        const result = await parseStringPromise(xmlData);
+        const urls = [];
+
+        if (result.urlset && result.urlset.url) {
+            result.urlset.url.forEach(urlObj => {
+                if (urlObj.loc && urlObj.loc[0]) {
+                    urls.push(urlObj.loc[0]);
+                }
+            });
+        }
+
+        if (result.sitemapindex && result.sitemapindex.sitemap) {
+            for (const sitemap of result.sitemapindex.sitemap) {
+                if (sitemap.loc && sitemap.loc[0]) {
+                    console.log(`📥 Found nested sitemap: ${sitemap.loc[0]}`);
+                    const nestedUrls = await extractUrlsFromSitemap(sitemap.loc[0]);
+                    urls.push(...nestedUrls);
+                }
+            }
+        }
+
+        return urls;
+    } catch (error) {
+        console.error(`🚨 Error fetching or parsing sitemap: ${error.message}`);
+        return [];
+    }
+}
+
 async function crawlUrls(browser, context, page, urls) {
-    
     page.setDefaultTimeout(config.browser.defaultTimeout);
     page.setDefaultNavigationTimeout(config.browser.navigationTimeout);
     
@@ -290,9 +354,7 @@ async function crawlUrls(browser, context, page, urls) {
         failedUrls: [],
         notFoundUrls: [],
         serverErrorUrls: [],
-        pageLoadTimes: [],
-        urlLoadTimes: [],
-        performanceData: [] // We'll still keep this for reference, but save incrementally
+        performanceData: []
     };
     
     for (const url of urls) {
@@ -302,7 +364,6 @@ async function crawlUrls(browser, context, page, urls) {
         console.log(`🌍 URL: ${url}`);
 
         try {
-            const pageStartTime = Date.now();
             const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
             if (response.status() === 404) {
@@ -339,12 +400,6 @@ async function crawlUrls(browser, context, page, urls) {
     return results;
 }
 
-/**
- * Extracts performance data from the result_frame on a performance page
- * @param {Page} page - Playwright page object
- * @param {string} url - The URL being processed
- * @param {Object} results - Results object to store the extracted data
- */
 async function extractPerformanceData(page, url, results) {
     try {
         console.log(`📊 Extracting performance data from ${url}`);
@@ -362,12 +417,9 @@ async function extractPerformanceData(page, url, results) {
         await page.waitForLoadState('networkidle', { timeout: 20000 })
             .catch(() => console.log('⚠️ Page did not reach network idle state'));
         
-        // Debug: List all frames on the page
+        // List all frames on the page
         const frames = page.frames();
         console.log(`🔍 Found ${frames.length} frames on the page`);
-        for (const f of frames) {
-            console.log(`   - Frame: name=${f.name()}, url=${f.url()}`);
-        }
         
         // Try multiple methods to find the frame
         console.log(`🔍 Looking for result_frame...`);
@@ -404,8 +456,6 @@ async function extractPerformanceData(page, url, results) {
                         parsePerformanceText(perfText, perfData);
                         storeResults(results, perfData);
                         return;
-                    } else {
-                        console.log(`❌ Could not extract using frameLocator`);
                     }
                 }
             }
@@ -446,39 +496,11 @@ async function extractPerformanceData(page, url, results) {
             parsePerformanceText(mainPagePerfText, perfData);
             storeResults(results, perfData);
         } else {
-            // Try one more approach - look for any elements that might contain the info
+            // Try generic approach as last resort
             console.log(`🔍 Trying generic approach to find performance data...`);
             
-            // Take screenshot for debugging
-            await page.screenshot({ path: `${url.replace(/[^a-zA-Z0-9]/g, '_')}.png` })
-                .catch(err => console.log(`Could not take screenshot: ${err.message}`));
-                
             // Look for any div that might contain our data
             const anyPerfText = await page.evaluate(() => {
-                // Try various selectors that might contain performance data
-                const selectors = [
-                    '.perfTotal', 
-                    '[id*="perf"]', 
-                    '[class*="perf"]',
-                    'div:contains("Total Time")',
-                    'div:contains("Queries:")'
-                ];
-                
-                for (const selector of selectors) {
-                    try {
-                        const elements = document.querySelectorAll(selector);
-                        for (const el of elements) {
-                            if (el.textContent.includes('Total Time') && 
-                                el.textContent.includes('System') && 
-                                el.textContent.includes('Queries')) {
-                                return el.textContent;
-                            }
-                        }
-                    } catch (e) {
-                        // Ignore errors with individual selectors
-                    }
-                }
-                
                 // Try to find element with text that looks like performance data
                 const allDivs = document.querySelectorAll('div');
                 for (const div of allDivs) {
@@ -489,7 +511,6 @@ async function extractPerformanceData(page, url, results) {
                         return text;
                     }
                 }
-                
                 return null;
             }).catch(() => null);
             
@@ -533,7 +554,6 @@ async function extractPerformanceData(page, url, results) {
         console.log(`   - Queries: ${data.queriesTime}s (${data.queriesCount} queries)`);
     }
     
-    // Modified storeResults function to save data immediately
     function storeResults(results, data) {
         if (!results.performanceData) {
             results.performanceData = [];
@@ -546,41 +566,17 @@ async function extractPerformanceData(page, url, results) {
     }
 }
 
-/**
- * Saves performance data to CSV - now used as a backup/fallback method
- * @param {Object} results - Results object containing the performance data
- */
-async function savePerformanceDataToCsv(results) {
-    if (!results.performanceData || results.performanceData.length === 0) {
-        console.log('⚠️ No performance data to save');
+async function savePerformanceRecord(record) {
+    if (!csvWriter) {
+        console.error('❌ CSV writer not initialized!');
         return;
     }
     
-    console.log(`📄 Saving ${results.performanceData.length} performance records as backup...`);
-    
-    if (csvWriter) {
-        // Use existing writer
-        await csvWriter.writeRecords(results.performanceData);
-    } else {
-        // Initialize a new writer (fallback)
-        const csvFilePath = path.join(config.directories.output, 'performance-data.csv');
-        
-        const tempCsvWriter = createObjectCsvWriter({
-            path: csvFilePath,
-            header: [
-                { id: 'url', title: 'URL' },
-                { id: 'totalTime', title: 'Total Time (s)' },
-                { id: 'systemTime', title: 'System Time (s)' },
-                { id: 'queriesTime', title: 'Queries Time (s)' },
-                { id: 'queriesCount', title: 'Queries Count' },
-                { id: 'timestamp', title: 'Timestamp' }
-            ]
-        });
-        
-        await tempCsvWriter.writeRecords(results.performanceData);
+    try {
+        await csvWriter.writeRecords([record]);
+    } catch (error) {
+        console.error(`❌ Error saving CSV record: ${error.message}`);
     }
-    
-    console.log(`📄 Performance data backup saved to CSV`);
 }
 
 function generateReports(results) {
@@ -610,7 +606,6 @@ function generateReports(results) {
 }
 
 function displaySummary(results, startTime) {
-        
     console.log(`\n📊 Crawl Summary:`);
     console.log(`✅ Total Sites Crawled: ${results.crawledCount}`);
     console.log(`✔️ Sites Fully Loaded: ${results.successfulCount}`);
@@ -623,59 +618,4 @@ function displaySummary(results, startTime) {
     console.log(`\n⏳ Total Time: ${totalTimeTaken.toFixed(2)} minutes`);
 }
 
-function askQuestion(query) {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-    });
-
-    return new Promise(resolve => rl.question(query, answer => {
-        rl.close();
-        resolve(answer.trim().toLowerCase());
-    }));
-}
-
-async function extractUrlsFromSitemap(url) {
-    try {
-        console.log(`📥 Fetching sitemap: ${url}`);
-        const response = await axios.get(url, { 
-            timeout: config.performance.sitemapFetchTimeout 
-        });
-        const xmlData = response.data;
-        const result = await parseStringPromise(xmlData);
-        const urls = [];
-
-        if (result.urlset && result.urlset.url) {
-            result.urlset.url.forEach(urlObj => {
-                if (urlObj.loc && urlObj.loc[0]) {
-                    urls.push(urlObj.loc[0]);
-                }
-            });
-        }
-
-        if (result.sitemapindex && result.sitemapindex.sitemap) {
-            for (const sitemap of result.sitemapindex.sitemap) {
-                if (sitemap.loc && sitemap.loc[0]) {
-                    console.log(`📥 Found nested sitemap: ${sitemap.loc[0]}`);
-                    const nestedUrls = await extractUrlsFromSitemap(sitemap.loc[0]);
-                    urls.push(...nestedUrls);
-                }
-            }
-        }
-
-        return urls;
-    } catch (error) {
-        console.error(`🚨 Error fetching or parsing sitemap: ${error.message}`);
-        return [];
-    }
-}
-
-function getUrlsFromFile() {
-    const filePath = path.join(config.directories.output, 'urls.txt');
-    if (!fs.existsSync(filePath)) return [];
-
-    return fs.readFileSync(filePath, 'utf-8')
-        .split('\n')
-        .map(url => url.trim())
-        .filter(url => url.length > 0);
-}
+main();

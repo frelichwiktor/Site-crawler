@@ -1,6 +1,5 @@
-// credentials.sample.js
-// You need to create a credentials.js to make authentication work.
-// Copy this file to credentials.js and update with real credentials
+// You need to change the name of this file to 'credentials.js' (or create a separate 'credentials.js' file).
+// Copy this module.exports to 'credentials.js' and update with real credentials
 
 module.exports = {
     matrix: {

@@ -1,112 +1,105 @@
-# Site crawler
+# Matrix Site Performance Crawler
 
-This is a robust site crawler that visits websites either from a provided text file (urls.txt), an XML sitemap, or both. It authenticates through the Matrix DXP system, checks if the DOM content is loaded, and logs any issues encountered along the way.
+This is a robust site crawler specifically designed for Matrix-powered websites. It visits pages from a text file, XML sitemap, or both, and captures detailed performance metrics from the `/_performance` endpoint of each page. The crawler supports both Production and DXP environments, with appropriate authentication and configuration for each.
 
-The crawler provides comprehensive monitoring capabilities including:
-- Immediate CSV logging of performance data for each page (resilient to crashes)
-- Detection of 404 Not Found errors and 500 Internal Server Errors
-- Real-time analysis of page load performance metrics
-- Custom URL suffix support for testing cache behavior
+## Key Features
 
-Performance data is saved incrementally after each page is crawled, ensuring no data loss even if the program terminates unexpectedly. Results are organized in separate files for easy analysis, with a detailed summary provided upon completion.
+- **Environment Selection**: Choose between PROD or DXP mode with appropriate cookies and version checks
+- **Multiple URL Sources**: Import URLs from a text file, XML sitemap, or both
+- **Comprehensive Data Collection**: Records total time, system time, query times, and query counts
+- **Error Detection**: Identifies and reports 404 and 500 errors separately
+- **Detailed Reporting**: CSV reports named with domain, environment, and date for easy tracking
+- **Crash Resilience**: Performance data is saved incrementally after each page is processed
+- **Custom URL Suffix**: Optionally add suffixes to test caching behavior or alternate page versions
 
 ## Installation
 
-Install the necessary dependencies with npm:
+1. Install dependencies:
 
 ```bash
 npm install
 ```
 
-Then, install Playwright:
+2. Install Playwright:
 
 ```bash
 npx playwright install
 ```
 
-Install required packages for CSV export:
+3. Install additional required packages:
+
 ```bash
-npm install csv-writer
+npm install csv-writer xml2js axios
 ```
 
-Install required packages for parsing sitemaps:
+4. Set up your credentials by copying the sample file:
+
 ```bash
-npm install xml2js axios
+cp credentials.sample.js credentials.js
 ```
 
-## Usage
+5. Edit `credentials.js` with your Matrix login details
 
-Run the crawler with:
+## Step-by-Step Usage Guide
+
+1. **Start the crawler**:
 
 ```bash
 node crawler.js
 ```
 
-### Input Options
+2. **Enter the domain**:
+   - When prompted, enter the domain for crawling (e.g., "www.example.com" or "https://www.example.com/")
+   - The crawler will extract the domain name and build the Matrix admin URL
 
-After running the script you will be asked to provide the domain for the Matrix and a Cookie:
+3. **Select environment**:
+   - Choose between "prod" or "dxp" when prompted
+   - If DXP is selected, a specific cookie will be added and version verification performed
+   - If PROD is selected, no cookie is added and version verification is skipped
 
-**Enter the domain or URL (e.g., www.example.com or https://www.example.com/)**
+4. **Log in to Matrix**:
+   - The crawler will use your credentials from credentials.js to log in
+   - If credentials.js is missing, you'll be prompted to enter username and password
 
-Then you will be prompted to choose one of the following options:
+5. **Select URL source**:
+   - Choose one of three options:
+     1. From URLs file (URLs/urls.txt)
+     2. From a sitemap URL
+     3. Both (combines URLs from file and sitemap)
+   - If using a sitemap, you'll be asked to enter the sitemap URL
 
-1. **Crawl URLs from a `txt` file** – Reads URLs from `URLs/urls.txt`.
-2. **Crawl URLs from a sitemap** – Extracts URLs from a provided XML sitemap.
-3. **Crawl both sources** – Combines both methods.
+6. **Add custom suffix** (optional):
+   - Choose whether to add a custom suffix to URLs
+   - If yes, enter the suffix (e.g., "/_nocache")
 
-#### Using a `txt` File
+7. **Monitor crawling progress**:
+   - The crawler will show real-time progress as it visits each URL
+   - Performance metrics are displayed and saved to CSV immediately
 
-To use URLs from a text file, place them in:
+8. **Review results**:
+   - When finished, a summary shows counts of successful, failed, timeout, 404, and 500 URLs
+   - CSV report is saved in the "reports" directory with naming format: domain-environment-date.csv
+   - Error URLs are saved to separate files in the URLs directory
 
-```
-URLs/urls.txt
-```
+## Output Files
 
-Each URL should be on a new line.
+- **Performance Data**: Saved in `reports/domain-environment-YYYY-MM-DD.csv`
+- **Crawled URLs**: Successfully crawled URLs saved to `URLs/urls-crawled.txt`
+- **Failed URLs**: URLs that failed to load saved to `URLs/urls-failed.txt`
+- **404 URLs**: Not found URLs saved to `URLs/urls-404.txt`
+- **500 URLs**: Server error URLs saved to `URLs/urls-500.txt`
 
-#### Using a Sitemap
+## Configuration
 
-If you choose to crawl from a sitemap, you need to provide a valid URL, such as:
-
-```
-https://example.com/sitemap.xml
-```
-
-The crawler will parse the sitemap and extract all listed URLs.
-
-### URL Suffix Feature
-
-The crawler supports adding a custom suffix to all URLs before crawling. After selecting your URL source, you'll be prompted:
-
-```
-Do you want to add a suffix to each URL? (y/n):
-```
-
-If you choose 'y', you'll be asked to enter the suffix:
-
-```
-Enter the suffix to add (e.g. /_nocache):
-```
-
-This feature is useful for:
-- Testing cache-busting with suffixes like `/_nocache` or `?nocache=true`
-- Checking alternative page versions with suffixes like `/preview` or `/print`
-- Testing URL parameters by adding query strings like `?test=true`
-
-The suffix is added to the path portion of each URL, preserving the original domain and any existing query parameters.
-
-### Configuration
-
-The crawler now uses a configuration file (`config.js`) to manage settings. You can modify these settings without changing the main code:
+The crawler uses a configuration file (`config.js`) for settings:
 
 ```javascript
-// Example config.js structure
 module.exports = {
     // Browser settings
     browser: {
-        headless: true,
-        defaultTimeout: 30000,     // 30 seconds
-        navigationTimeout: 30000   // 30 seconds
+        headless: true,             // Run browser headlessly (no UI)
+        defaultTimeout: 30000,      // 30 seconds
+        navigationTimeout: 30000    // 30 seconds
     },
     
     // Directory settings
@@ -121,9 +114,9 @@ module.exports = {
         }
     },
     
-    // Performance settings, not related to the /_performance tab
+    // Performance settings
     performance: {
-        sitemapFetchTimeout: 10000 // 10 seconds
+        sitemapFetchTimeout: 10000  // 10 seconds
     },
     
     domain: '',
@@ -133,73 +126,27 @@ module.exports = {
 };
 ```
 
-This allows you to easily adjust:
-- Browser behavior and timeouts
-- Output directories and file names
+Adjust these settings to customize timeouts, file paths, and browser behavior.
 
-### Cookie Configuration
+## Tips & Troubleshooting
 
-If you need to pass specific cookies, modify the `addCookies` object in `main ()`:
+- **Prepare URLs file**: For crawling from a file, create `URLs/urls.txt` with one URL per line
+- **Network issues**: If sitemap extraction fails, try increasing the `sitemapFetchTimeout` in config.js
+- **Login problems**: Verify your Matrix credentials and ensure the domain is correct
+- **Browser timeout**: For slow sites, increase the `defaultTimeout` and `navigationTimeout` values
+- **No performance data**: Ensure the site has the `/_performance` capability enabled
 
-```javascript
-await context.addCookies([{
-    name: 'cookie name',
-    value: 'value',
-    domain: domain,
-    path: '/',
-    httpOnly: true,
-    secure: false
-    }]);
-```
+## Internal Working
 
-### Timeout Settings
+1. The crawler logs into Matrix using provided credentials
+2. It collects URLs from the specified source(s)
+3. Each URL is modified to add "/_performance" to access the performance page
+4. For each page:
+   - The performance metrics are extracted from the page content
+   - Data is parsed and saved immediately to the CSV file
+   - Any errors are logged appropriately
+5. Summary reports are generated at the end of the crawl
 
-You can modify the default timeout settings in `config.js`:
-
-```javascript
-browser: {
-    headless: true,
-    defaultTimeout: 30000,     // 30 seconds in milliseconds
-    navigationTimeout: 30000   // 30 seconds in milliseconds
-}
-```
-
-### Output Files
-
-Results are saved in the output directory specified in the config (default is `URLs/` folder):
-
-- `performance-data.csv` – Performance data gathered from /_performance tab of each page.
-- `urls-crawled.txt` – Successfully crawled URLs.
-- `urls-failed.txt` – URLs that failed to load.
-- `urls-404.txt` – URLs that returned a `404 Not Found` response.
-- `urls-500.txt` – URLs that returned a `500 Internal Server Error` response.
-
-### Summary Report
-
-At the end of each run, a summary is displayed, including:
-
-- Total sites crawled
-- Successfully loaded sites
-- Sites with timeouts
-- Sites with errors
-- `404 Not Found` pages
-- `500 Internal Server Error` pages
-- Total execution time
-
-## Project Structure
-
-The project follows a modular approach:
-
-- `crawler.js` - Main application with code organized into focused functions
-- `config.js` - Configuration settings
-- `URLs/` - Directory for input/output files
-
-## Notes
-
-- Ensure the output directory (specified in config) exists before running the crawler.
-- If a URL file or sitemap is missing, the program will prompt you accordingly.
-- Load times are measured from the start of navigation until the DOM content is loaded.
-- The slowest pages report helps identify potential performance bottlenecks.
 ---
 
 Happy crawling! 🚀
