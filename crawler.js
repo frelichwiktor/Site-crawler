@@ -155,10 +155,13 @@ async function initializeCsvWriter(domain, isDxpVersion) {
                              .replace(/^www\./i, '')
                              .replace(/[^\w.-]/g, '-');
     
-    const currentDate = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
     
     const environment = isDxpVersion ? 'dxp' : 'prod';
-    const filename = `${cleanDomain}-${environment}-${currentDate}.csv`;
+    const filename = `${cleanDomain}-${environment}-${currentDate}-${hours}${minutes}.csv`;
     
     const reportsDir = 'reports';
     if (!fs.existsSync(reportsDir)) {
@@ -573,7 +576,18 @@ async function savePerformanceRecord(record) {
     }
     
     try {
-        await csvWriter.writeRecords([record]);
+        // Create a new record with formatted values (dots replaced with commas)
+        const formattedRecord = {
+            ...record,
+            totalTime: record.totalTime ? record.totalTime.toString().replace('.', ',') : null,
+            systemTime: record.systemTime ? record.systemTime.toString().replace('.', ',') : null,
+            queriesTime: record.queriesTime ? record.queriesTime.toString().replace('.', ',') : null,
+            // queriesCount is an integer, so no need to format
+            queriesCount: record.queriesCount,
+            timestamp: record.timestamp
+        };
+        
+        await csvWriter.writeRecords([formattedRecord]);
     } catch (error) {
         console.error(`❌ Error saving CSV record: ${error.message}`);
     }
