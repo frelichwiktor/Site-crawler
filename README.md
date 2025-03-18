@@ -39,7 +39,10 @@ cp credentials.sample.js credentials.js
 ```
 
 5. Edit `credentials.js` with your Matrix login details
+
+```bash
 NOTE: if your password contains `\`, you need to add `\` next to it, as each `\\` is interpreted as a single literal backslash.
+```
 
 ## Step-by-Step Usage Guide
 
