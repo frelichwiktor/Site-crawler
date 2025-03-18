@@ -146,7 +146,7 @@ function askQuestion(query) {
 
     return new Promise(resolve => rl.question(query, answer => {
         rl.close();
-        resolve(answer.trim().toLowerCase());
+        resolve(answer.trim());
     }));
 }
 
