@@ -8,7 +8,12 @@
     "crawler": "node src/main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["crawler", "matrix", "performance", "testing"],
+  "keywords": [
+    "crawler",
+    "matrix",
+    "performance",
+    "testing"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
@@ -17,7 +22,7 @@
     "playwright": "^1.50.1"
   },
   "dependencies": {
-    "axios": "^1.8.1",
+    "axios": "^1.9.0",
     "csv-writer": "^1.6.0",
     "xml2js": "^0.6.2"
   }
