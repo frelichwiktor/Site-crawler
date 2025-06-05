@@ -1,10 +1,14 @@
 {
   "name": "site-crawler",
   "version": "1.0.0",
-  "description": "",
+  "description": "Matrix Site Performance Crawler - A modular crawler for Matrix-powered websites",
   "main": "index.js",
-  "scripts": {},
-  "keywords": [],
+  "scripts": {
+    "start": "node index.js",
+    "crawler": "node src/main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["crawler", "matrix", "performance", "testing"],
   "author": "",
   "license": "ISC",
   "devDependencies": {
