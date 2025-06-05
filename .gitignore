@@ -4,3 +4,29 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Credentials file (contains sensitive information)
+credentials.js
+
+# Output directories
+/URLs/
+/reports/
+
+# Performance data
+/URLs/performance-data.csv
+*.csv
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
