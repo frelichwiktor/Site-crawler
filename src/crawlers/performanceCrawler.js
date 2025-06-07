@@ -2,14 +2,12 @@ const config = require('../config');
 const { constants } = config;
 const PerformanceExtractor = require('../extractors/performanceExtractor');
 const FileReporter = require('../reporters/fileReporter');
-const cliProgress = require('cli-progress');
 
 class PerformanceCrawler {
     constructor(csvReporter) {
         this.csvReporter = csvReporter;
         this.extractor = new PerformanceExtractor();
         this.fileReporter = new FileReporter();
-        this.progressBar = null;
         this.results = {
             crawledCount: 0,
             successfulCount: 0,
@@ -28,37 +26,21 @@ class PerformanceCrawler {
         page.setDefaultTimeout(config.browser.defaultTimeout);
         page.setDefaultNavigationTimeout(config.browser.navigationTimeout);
         
-        // Create and start the progress bar
-        this.progressBar = new cliProgress.SingleBar({
-            format: '🚀 Crawling Progress |{bar}| {percentage}% | {value}/{total} URLs | ETA: {eta}s | Speed: {speed}',
-            barCompleteChar: '\u2588',
-            barIncompleteChar: '\u2591',
-            hideCursor: true,
-            clearOnComplete: false,
-            stopOnComplete: true
-        });
-        
-        // Start the progress bar
-        this.progressBar.start(urls.length, 0, {
-            speed: "N/A"
-        });
+        console.log(`🚀 Starting to crawl ${urls.length} URLs...\n`);
         
         const startTime = Date.now();
         
         for (const url of urls) {
             this.results.crawledCount++;
             
-            // Calculate speed (URLs per minute)
+            // Calculate speed and ETA
             const elapsed = (Date.now() - startTime) / 1000;
-            const speed = elapsed > 0 ? ((this.results.crawledCount / elapsed) * 60).toFixed(1) + '/min' : 'N/A';
+            const speed = elapsed > 0 ? ((this.results.crawledCount / elapsed) * 60).toFixed(1) : 'N/A';
+            const remainingUrls = urls.length - this.results.crawledCount;
+            const estimatedTimeLeft = speed !== 'N/A' && speed > 0 ? Math.round(remainingUrls / (parseFloat(speed) / 60)) : 'N/A';
             
-            // Update progress bar
-            this.progressBar.update(this.results.crawledCount, {
-                speed: speed
-            });
-            
-            // Still log the current URL being processed (below the progress bar)
-            console.log(`\n🌍 Processing: ${url}`);
+            console.log(`\n📍 [${this.results.crawledCount}/${urls.length}] Crawling: ${url}`);
+            console.log(`🚀 Speed: ${speed}/min | ETA: ${estimatedTimeLeft}s remaining`);
 
             try {
                 await this.crawlSingleUrl(page, url);
@@ -67,9 +49,7 @@ class PerformanceCrawler {
             }
         }
         
-        // Stop the progress bar
-        this.progressBar.stop();
-        console.log('\n✅ Crawling completed!');
+        console.log('\n✅ Crawling completed!\n');
         
         return this.results;
     }
@@ -107,11 +87,6 @@ class PerformanceCrawler {
         // Record as successful
         this.results.successfulCount++;
         this.fileReporter.recordCrawledUrl(url);
-        
-        // Log the performance data briefly
-        if (perfData.totalTime) {
-            console.log(`📊 Total: ${perfData.totalTime}s | System: ${perfData.systemTime}s | Queries: ${perfData.queriesTime}s (${perfData.queriesCount})`);
-        }
     }
 
     handleCrawlError(error, url) {

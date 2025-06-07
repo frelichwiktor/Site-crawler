@@ -2,7 +2,7 @@
 module.exports = {
     default: {
         browser: {
-            headless: false,
+            headless: true,
             defaultTimeout: 30000,
             navigationTimeout: 30000
         },

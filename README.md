@@ -8,7 +8,7 @@ A robust, modular site crawler specifically designed for Matrix-powered websites
 - **Multiple URL Sources**: Import URLs from text file, XML sitemap, or both
 - **Comprehensive Data Collection**: Records total time, system time, query times, and query counts
 - **Error Detection**: Identifies and reports 404 and 500 errors separately
-- **Visual Progress Bar**: Real-time progress tracking with speed metrics and ETA
+- **Speed data**: Real-time progress tracking with speed metrics and ETA
 - **Detailed Reporting**: CSV reports named with domain, environment, and timestamp
 - **Crash Resilience**: Performance data saved incrementally after each page
 - **Custom URL Suffix**: Optional suffixes to test caching behaviour or alternate page versions
@@ -21,7 +21,7 @@ A robust, modular site crawler specifically designed for Matrix-powered websites
 │   ├── auth/
 │   │   └── matrixAuth.js          # Matrix authentication handler
 │   ├── crawlers/
-│   │   └── performanceCrawler.js  # Main crawling logic with progress bar
+│   │   └── performanceCrawler.js  # Main crawling logic
 │   ├── extractors/
 │   │   └── performanceExtractor.js # Performance data extraction
 │   ├── reporters/
@@ -104,7 +104,7 @@ Three options available:
 - Applied before the automatic "/_performance" suffix
 
 ### 7. Monitor Progress
-- **Visual progress bar** shows:
+- **Speed data** shows:
   - Completion percentage
   - Current/total URLs processed
   - Processing speed (URLs per minute)
@@ -173,7 +173,6 @@ directories: {
 - **Login problems**: Verify Matrix credentials and domain correctness
 - **Browser timeouts**: Increase `defaultTimeout` and `navigationTimeout` for slow sites
 - **Missing performance data**: Ensure target site has `/_performance` capability enabled
-- **Progress bar issues**: If terminal doesn't support progress bars, they'll fall back to text
 
 ### Performance Tips
 - **Headless mode**: Set `headless: true` in config for faster crawling
@@ -208,21 +207,6 @@ Multiple fallback methods for performance data extraction:
 - **Extraction failures**: Fallback methods and detailed error logging
 - **Authentication failures**: Clear error messages and retry prompts
 
-## 📊 Progress Bar Features
-
-The visual progress bar displays:
-- **Completion**: Current progress as percentage and count
-- **Speed**: Processing rate in URLs per minute
-- **ETA**: Estimated time to completion
-- **Visual bar**: Animated progress indicator
-
-Example output:
-```
-🚀 Crawling Progress |████████████░░░░| 75% | 150/200 URLs | ETA: 30s | Speed: 12.5/min
-🌍 Processing: https://example.com/page-123/_performance
-📊 Total: 2.45s | System: 1.23s | Queries: 0.89s (15)
-```
-
 ## 🎯 Dependencies
 
 ### Runtime Dependencies
@@ -230,7 +214,6 @@ Example output:
 - **axios**: HTTP requests for sitemap fetching
 - **xml2js**: XML sitemap parsing
 - **csv-writer**: CSV file generation
-- **cli-progress**: Visual progress bars
 
 ### Development Dependencies
 - **@playwright/test**: Testing framework
