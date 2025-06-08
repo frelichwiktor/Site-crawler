@@ -74,8 +74,21 @@ module.exports = {
     // CSV configuration
     CSV: {
         DECIMAL_SEPARATOR: ',', // European format
+        
+        // Standard headers for single environment mode (backward compatibility)
         HEADERS: [
             { id: 'url', title: 'URL' },
+            { id: 'totalTime', title: 'Total Time (s)' },
+            { id: 'systemTime', title: 'System Time (s)' },
+            { id: 'queriesTime', title: 'Queries Time (s)' },
+            { id: 'queriesCount', title: 'Queries Count' },
+            { id: 'timestamp', title: 'Timestamp' }
+        ],
+        
+        // Headers for comparison mode (includes environment column)
+        COMPARISON_HEADERS: [
+            { id: 'url', title: 'URL' },
+            { id: 'environment', title: 'Environment' },
             { id: 'totalTime', title: 'Total Time (s)' },
             { id: 'systemTime', title: 'System Time (s)' },
             { id: 'queriesTime', title: 'Queries Time (s)' },

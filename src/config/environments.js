@@ -1,4 +1,3 @@
-// Default configuration (can be overridden)
 module.exports = {
     default: {
         browser: {

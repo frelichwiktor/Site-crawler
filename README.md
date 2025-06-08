@@ -1,17 +1,19 @@
 # Matrix Site Performance Crawler
 
-A robust, modular site crawler specifically designed for Matrix-powered websites. It visits pages from a text file, XML sitemap, or both, and captures detailed performance metrics from the `/_performance` endpoint of each page. The crawler supports both Production and DXP environments with appropriate authentication and configuration.
+A robust, modular site crawler specifically designed for Matrix-powered websites. It visits pages from a text file, XML sitemap, or both, and captures detailed performance metrics from the `/_performance` endpoint of each page. The crawler supports PROD-only, DXP-only, and **comparison modes** with parallel execution for maximum efficiency.
 
 ## ✨ Key Features
 
-- **Environment Selection**: Choose between PROD or DXP mode with appropriate cookies and version checks
+- **Three Crawling Modes**: PROD-only, DXP-only, or **parallel PROD vs DXP comparison**
+- **Parallel Comparison Execution**: Compare environments simultaneously for ~50% time reduction
 - **Multiple URL Sources**: Import URLs from text file, XML sitemap, or both
 - **Comprehensive Data Collection**: Records total time, system time, query times, and query counts
-- **Error Detection**: Identifies and reports 404 and 500 errors separately
-- **Speed data**: Real-time progress tracking with speed metrics and ETA
-- **Detailed Reporting**: CSV reports named with domain, environment, and timestamp
+- **Intelligent Error Detection**: Identifies and reports 404 and 500 errors separately
+- **Real-time Progress Tracking**: Speed metrics and ETA calculations
+- **Automated Reporting**: CSV reports with domain, environment, and timestamp
 - **Crash Resilience**: Performance data saved incrementally after each page
-- **Custom URL Suffix**: Optional suffixes to test caching behaviour or alternate page versions
+- **Custom URL Suffixes**: Optional suffixes to test caching behaviour or alternate versions
+- **Clean Logging**: Minimal, focused console output for daily use
 
 ## 🏗️ Project Structure
 
@@ -21,7 +23,8 @@ A robust, modular site crawler specifically designed for Matrix-powered websites
 │   ├── auth/
 │   │   └── matrixAuth.js          # Matrix authentication handler
 │   ├── crawlers/
-│   │   └── performanceCrawler.js  # Main crawling logic
+│   │   ├── performanceCrawler.js  # Sequential single-environment crawling
+│   │   └── comparisonCrawler.js   # Parallel PROD vs DXP comparison
 │   ├── extractors/
 │   │   └── performanceExtractor.js # Performance data extraction
 │   ├── reporters/
@@ -60,9 +63,13 @@ cp credentials.sample.js credentials.js
 4. **Edit credentials with your Matrix login details:**
 ```javascript
 module.exports = {
-    matrix: {
-        username: "your_username_here",
-        password: "your_password_here"
+    prod: {
+        username: "your_prod_username_here",
+        password: "your_prod_password_here"
+    },
+    dxp: {
+        username: "your_dxp_username_here", 
+        password: "your_dxp_password_here"
     }
 };
 ```
@@ -74,55 +81,75 @@ module.exports = {
 ### 1. Start the Crawler
 ```bash
 npm start
-# or
-node index.js
-# or directly
-node src/main.js
 ```
 
 ### 2. Configure Domain
 - Enter the domain for crawling (e.g., "www.example.com" or "https://www.example.com/")
 - The crawler extracts the domain name and builds the Matrix admin URL automatically
 
-### 3. Select Environment
-- Choose between **"prod"** or **"dxp"**
-- **DXP mode**: Adds specific cookie and performs version verification
-- **PROD mode**: Skips cookie and version verification
+### 3. Select Crawling Mode
+Choose from three powerful options:
+- **[1] PROD only** - Sequential crawling of PROD environment
+- **[2] DXP only** - Sequential crawling of DXP environment  
+- **[3] Compare PROD vs DXP** - Parallel comparison mode
 
-### 4. Authentication
-- Crawler uses credentials from `credentials.js` to log into Matrix
-- If file is missing, you'll be prompted for username and password
-
-### 5. Choose URL Source
+### 4. Choose URL Source
 Three options available:
 1. **From URLs file** - Uses `URLs/urls.txt`
 2. **From sitemap URL** - Enter sitemap URL when prompted
 3. **Both sources** - Combines URLs from file and sitemap (duplicates removed)
 
-### 6. Custom Suffix (Optional)
+### 5. Custom Suffix (Optional)
 - Option to add custom suffix to URLs (e.g., "/_nocache")
 - Applied before the automatic "/_performance" suffix
 
-### 7. Monitor Progress
-- **Speed data** shows:
-  - Completion percentage
-  - Current/total URLs processed
-  - Processing speed (URLs per minute)
-  - Estimated time remaining
-- Real-time performance metrics displayed for each URL
-- All data saved to CSV incrementally
+### 6. Monitor Progress
+**Clean, focused output shows:**
+- **Current URL and progress** (e.g., "[15/100]")
+- **Processing speed** (URLs per minute)
+- **Estimated time remaining**
+- **Success/failure status** per URL
 
-### 8. Review Results
+### 7. Review Results
 - **Summary statistics** show counts of successful, failed, timeout, 404, and 500 URLs
-- **CSV report** saved to `reports/` directory
+- **CSV report** saved to `reports/` directory with timestamp
 - **Error URLs** saved to separate files in `URLs/` directory
+
+## 🔥 Comparison Mode
+
+**NEW: Parallel PROD vs DXP comparison** is the standout feature:
+
+### **What It Does:**
+- Crawls **same URLs simultaneously** in both PROD and DXP environments  
+- **~50% faster** than running separate crawls
+- **Side-by-side performance data** in one CSV file
+- **Automatic difference calculations** and alerts for significant variances
+
+### **Example Output:**
+```
+📍 [5/50] https://example.com/checkout/_performance
+🚀 Speed: 6/min | ETA: 450s
+   PROD: ✅ | DXP: ✅
+
+📍 [6/50] https://example.com/products/_performance  
+🚀 Speed: 6/min | ETA: 440s
+   PROD: ✅ | DXP: ✅
+```
+
+### **CSV Output Format:**
+```
+URL, Environment, Total Time (s), System Time (s), Queries Time (s), Queries Count, Timestamp
+https://example.com/page1, PROD, 2,45, 1,23, 0,89, 15, 2025-06-07T10:30:00Z
+https://example.com/page1, DXP, 2,67, 1,34, 0,92, 16, 2025-06-07T10:30:15Z
+```
 
 ## 📁 Output Files
 
 ### Performance Reports
 - **Location**: `reports/domain-environment-YYYY-MM-DD-HHMM.csv`
 - **Format**: CSV with European decimal separators (comma)
-- **Columns**: URL, Total Time, System Time, Queries Time, Queries Count, Timestamp
+- **Single Mode**: `domain-prod-YYYY-MM-DD-HHMM.csv` or `domain-dxp-YYYY-MM-DD-HHMM.csv`
+- **Comparison Mode**: `domain-comparison-YYYY-MM-DD-HHMM.csv`
 
 ### URL Lists
 - **Crawled URLs**: `URLs/urls-crawled.txt` - Successfully processed URLs
@@ -167,6 +194,7 @@ directories: {
 ### Preparation
 - **URLs file**: Create `URLs/urls.txt` with one URL per line for file-based crawling
 - **Sitemap testing**: Verify sitemap URLs are accessible before crawling
+- **Credentials**: Ensure both PROD and DXP credentials are valid for comparison mode
 
 ### Common Issues
 - **Network timeouts**: Increase `sitemapFetchTimeout` in constants.js for slow sitemaps
@@ -177,12 +205,17 @@ directories: {
 ### Performance Tips
 - **Headless mode**: Set `headless: true` in config for faster crawling
 - **Timeout tuning**: Adjust timeouts based on your site's response times
+- **Comparison mode**: Use for maximum efficiency when testing PROD vs DXP
 - **Batch processing**: For large sitemaps, consider processing in smaller batches
 
 ## 🔧 Internal Architecture
 
+### Crawling Modes
+1. **Single Environment (PROD/DXP)**: Sequential crawling with single authentication session
+2. **Comparison Mode**: Parallel execution with independent authentication per environment
+
 ### Authentication Flow
-1. Load credentials from `credentials.js` or prompt user
+1. Load credentials from `credentials.js` (PROD and DXP sections)
 2. Navigate to Matrix admin URL with force login parameter
 3. Perform DXP version verification (if in DXP mode)
 4. Submit login form and wait for successful navigation
@@ -195,17 +228,15 @@ directories: {
 
 ### Data Extraction Strategy
 Multiple fallback methods for performance data extraction:
-1. Frame by name (`result_frame`)
-2. Frame by URL pattern (`performance_result`)
-3. Frame locator by ID (`#result_frame`)
-4. Main page content search
-5. Generic DOM traversal for performance text
+1. Frame locator by ID (`#result_frame`)
+2. Frame by name (`result_frame`)
+3. Main page content search as fallback
 
 ### Error Handling
 - **Network timeouts**: Configurable timeouts with graceful degradation
 - **HTTP errors**: Separate tracking for 404/500 responses
-- **Extraction failures**: Fallback methods and detailed error logging
-- **Authentication failures**: Clear error messages and retry prompts
+- **Extraction failures**: Fallback methods and clean error logging
+- **Authentication failures**: Clear error messages and helpful tips
 
 ## 🎯 Dependencies
 
@@ -223,4 +254,4 @@ Multiple fallback methods for performance data extraction:
 
 ## 🚀 Happy Crawling!
 
-This crawler is designed to be robust, informative, and easy to use. The modular architecture makes it simple to extend with new features or modify existing behaviour. For questions or issues, check the troubleshooting section above or review the detailed logging output during crawling.
+This crawler is designed to be robust, fast, and perfect for QA workflows. The **comparison mode with parallel execution** is the real game-changer - get side-by-side PROD vs DXP performance data in half the time of separate crawls.

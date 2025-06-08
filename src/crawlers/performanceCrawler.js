@@ -75,16 +75,12 @@ class PerformanceCrawler {
             return;
         }
 
-        // Extract performance data
         const perfData = await this.extractor.extractPerformanceData(page, url);
         
-        // Store results
         this.results.performanceData.push(perfData);
         
-        // Save to CSV immediately
         await this.csvReporter.savePerformanceRecord(perfData);
         
-        // Record as successful
         this.results.successfulCount++;
         this.fileReporter.recordCrawledUrl(url);
     }

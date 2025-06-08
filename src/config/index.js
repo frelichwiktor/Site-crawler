@@ -1,17 +1,13 @@
-// Main configuration file that combines all config modules
 const constants = require('./constants');
 const environments = require('./environments');
 
-// Get current environment (default to 'production')
 const currentEnv = process.env.NODE_ENV || 'production';
 
-// Merge default config with environment-specific config
 const envConfig = {
     ...environments.default,
     ...environments[currentEnv]
 };
 
-// Build the final configuration object
 const config = {
     // Environment info
     env: currentEnv,

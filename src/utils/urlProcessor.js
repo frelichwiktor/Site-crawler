@@ -32,17 +32,13 @@ class UrlProcessor {
                 domain = domain.slice(0, -1);
             }
             
-            console.log(`✅ Domain extracted for cookie: ${domain}`);
-            console.log(`✅ Base URL for Matrix: ${baseUrl}`);
+            console.log(`✅ Domain: ${domain}`);
             
-            // Use the setDomain helper function
             config.setDomain(domain, baseUrl);
             
             return domain;
         } catch (error) {
             console.error(`❌ Error parsing domain: ${error.message}`);
-            // Fallback to direct input if parsing fails
-            console.log(`⚠️ Using input directly: ${userInput}`);
             domain = userInput.replace(/^https?:\/\//, '').replace(/\/$/, '');
             config.setDomain(domain, `https://${domain}`);
             return domain;
@@ -55,7 +51,7 @@ class UrlProcessor {
         }
         
         const choice = await this.askQuestion(
-            "How do you want to crawl?\n" +
+            "\nHow do you want to crawl?\n" +
             "[1] From URLs file (urls.txt)\n" +
             "[2] From a sitemap URL\n" +
             "[3] Both (txt & sitemap)\n" +
@@ -65,15 +61,15 @@ class UrlProcessor {
         let urls = [];
         
         if (choice === '1') {
-            console.log(`📂 Crawling URLs from '${config.directories.output}/${constants.FILE_NAMES.URLS_SOURCE}'...`);
+            console.log(`\n📂 Loading URLs from file...`);
             urls = this.getUrlsFromFile();
         } else if (choice === '2') {
             let sitemapUrl = await this.askQuestion("Enter the sitemap URL: ");
-            console.log(`📥 Crawling URLs from sitemap: ${sitemapUrl}...`);
+            console.log(`\n📥 Loading URLs from sitemap...`);
             urls = await this.extractUrlsFromSitemap(sitemapUrl);
         } else if (choice === '3') {
             let sitemapUrl = await this.askQuestion("Enter the sitemap URL: ");
-            console.log(`📂 Crawling both '${config.directories.output}/${constants.FILE_NAMES.URLS_SOURCE}' and the sitemap...`);
+            console.log(`\n📂 Loading URLs from both sources...`);
             urls = [...new Set([...this.getUrlsFromFile(), ...await this.extractUrlsFromSitemap(sitemapUrl)])];
         } else {
             console.log("❌ Invalid choice. Exiting...");
@@ -84,6 +80,8 @@ class UrlProcessor {
             console.log('⚠️ No URLs found. Exiting...');
             return [];
         }
+        
+        console.log(`✅ Loaded ${urls.length} URLs`);
         
         urls = await this.processSuffixOption(urls);
         
@@ -102,7 +100,6 @@ class UrlProcessor {
 
     async extractUrlsFromSitemap(url) {
         try {
-            console.log(`📥 Fetching sitemap: ${url}`);
             const response = await axios.get(url, { 
                 timeout: constants.TIMEOUTS.SITEMAP_FETCH
             });
@@ -121,7 +118,6 @@ class UrlProcessor {
             if (result.sitemapindex && result.sitemapindex.sitemap) {
                 for (const sitemap of result.sitemapindex.sitemap) {
                     if (sitemap.loc && sitemap.loc[0]) {
-                        console.log(`📥 Found nested sitemap: ${sitemap.loc[0]}`);
                         const nestedUrls = await this.extractUrlsFromSitemap(sitemap.loc[0]);
                         urls.push(...nestedUrls);
                     }
@@ -130,7 +126,7 @@ class UrlProcessor {
 
             return urls;
         } catch (error) {
-            console.error(`🚨 Error fetching or parsing sitemap: ${error.message}`);
+            console.error(`❌ Error fetching sitemap: ${error.message}`);
             return [];
         }
     }
@@ -159,7 +155,7 @@ class UrlProcessor {
     }
 
     addPerformanceSuffix(urls) {
-        console.log(`🔧 Adding suffix '${constants.URL_PATTERNS.PERFORMANCE_SUFFIX}' to all URLs`);
+        console.log(`🔧 Adding /_performance suffix to all URLs`);
         return urls.map(url => {
             try {
                 const urlObj = new URL(url);

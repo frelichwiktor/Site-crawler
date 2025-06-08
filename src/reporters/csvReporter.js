@@ -26,7 +26,7 @@ class CsvReporter {
         this.csvFilePath = null;
     }
 
-    async initialize(domain, isDxpVersion) {
+    async initialize(domain, environmentOrMode) {
         const cleanDomain = domain.replace(/^https?:\/\//i, '')
                                  .replace(/^www\./i, '')
                                  .replace(/[^\w.-]/g, '-');
@@ -36,21 +36,24 @@ class CsvReporter {
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
         
-        const environment = isDxpVersion ? 'dxp' : 'prod';
-        const filename = `${cleanDomain}-${environment}-${currentDate}-${hours}${minutes}.csv`;
+        // Handle different filename patterns
+        let filename;
+        if (environmentOrMode === 'comparison') {
+            filename = `${cleanDomain}-comparison-${currentDate}-${hours}${minutes}.csv`;
+        } else {
+            // Legacy single environment mode
+            const environment = environmentOrMode ? 'dxp' : 'prod';
+            filename = `${cleanDomain}-${environment}-${currentDate}-${hours}${minutes}.csv`;
+        }
         
-        // Handle both old and new config structures
         let reportsDir = 'reports'; // default
         
         if (config && config.directories) {
             if (typeof config.directories.reports === 'string') {
-                // Old config structure where reports is a string path
                 reportsDir = config.directories.reports;
             } else if (config.directories.reportsDir) {
-                // New config structure with explicit reportsDir
                 reportsDir = config.directories.reportsDir;
             } else if (config.directories.reports && typeof config.directories.reports === 'object') {
-                // New config where reports is an object - use default
                 reportsDir = 'reports';
             }
         }
@@ -61,24 +64,36 @@ class CsvReporter {
         
         this.csvFilePath = path.join(reportsDir, filename);
         
-        // Define headers - use constants if available, otherwise use defaults
-        const headers = (constants && constants.CSV && constants.CSV.HEADERS) 
-            ? constants.CSV.HEADERS 
-            : [
+        let headers;
+        if (environmentOrMode === 'comparison') {
+            headers = [
                 { id: 'url', title: 'URL' },
+                { id: 'environment', title: 'Environment' },
                 { id: 'totalTime', title: 'Total Time (s)' },
                 { id: 'systemTime', title: 'System Time (s)' },
                 { id: 'queriesTime', title: 'Queries Time (s)' },
                 { id: 'queriesCount', title: 'Queries Count' },
                 { id: 'timestamp', title: 'Timestamp' }
             ];
+        } else {
+            headers = (constants && constants.CSV && constants.CSV.HEADERS) 
+                ? constants.CSV.HEADERS 
+                : [
+                    { id: 'url', title: 'URL' },
+                    { id: 'totalTime', title: 'Total Time (s)' },
+                    { id: 'systemTime', title: 'System Time (s)' },
+                    { id: 'queriesTime', title: 'Queries Time (s)' },
+                    { id: 'queriesCount', title: 'Queries Count' },
+                    { id: 'timestamp', title: 'Timestamp' }
+                ];
+        }
         
         this.csvWriter = createObjectCsvWriter({
             path: this.csvFilePath,
             header: headers
         });
         
-        console.log(`📝 CSV writer initialized: ${this.csvFilePath}`);
+        console.log(`📝 Report: ${filename}`);
         return this.csvFilePath;
     }
 
@@ -89,21 +104,22 @@ class CsvReporter {
         }
         
         try {
-            // Get decimal separator from constants or default to comma
             const decimalSeparator = (constants && constants.CSV && constants.CSV.DECIMAL_SEPARATOR) 
                                    ? constants.CSV.DECIMAL_SEPARATOR 
                                    : ',';
             
-            // Create a new record with formatted values (dots replaced for European format)
             const formattedRecord = {
-                ...record,
+                url: record.url,
                 totalTime: record.totalTime ? record.totalTime.toString().replace('.', decimalSeparator) : null,
                 systemTime: record.systemTime ? record.systemTime.toString().replace('.', decimalSeparator) : null,
                 queriesTime: record.queriesTime ? record.queriesTime.toString().replace('.', decimalSeparator) : null,
-                // queriesCount is an integer, so no need to format
                 queriesCount: record.queriesCount,
                 timestamp: record.timestamp
             };
+            
+            if (record.environment) {
+                formattedRecord.environment = record.environment;
+            }
             
             await this.csvWriter.writeRecords([formattedRecord]);
         } catch (error) {

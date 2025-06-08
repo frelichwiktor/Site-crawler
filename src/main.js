@@ -8,6 +8,7 @@ const MatrixAuth = require('./auth/matrixAuth');
 const UrlProcessor = require('./utils/urlProcessor');
 const CsvReporter = require('./reporters/csvReporter');
 const PerformanceCrawler = require('./crawlers/performanceCrawler');
+const ComparisonCrawler = require('./crawlers/comparisonCrawler');
 
 class MatrixCrawlerApp {
     constructor() {
@@ -19,71 +20,135 @@ class MatrixCrawlerApp {
 
     async run() {
         try {
-            // Step 1: Load credentials
             const credentials = await this.auth.loadCredentials();
             
-            // Step 2: Setup domain
             const domain = await this.urlProcessor.setupDomain();
             
-            // Step 3: Choose environment
-            const versionChoice = await this.askQuestion("Do you want to run the crawler for PROD or DXP version? (prod/dxp): ");
-            const isDxpVersion = versionChoice.toLowerCase() === 'dxp';
+            const crawlMode = await this.askQuestion(
+                "\nWhich crawling mode do you want?\n" +
+                "[1] PROD only\n" +
+                "[2] DXP only\n" +
+                "[3] Compare PROD vs DXP\n" +
+                "Enter your choice (1, 2, or 3): "
+            );
             
-            // Step 4: Initialize CSV reporter
-            const csvFilePath = await this.csvReporter.initialize(domain, isDxpVersion);
-            
-            // Step 5: Setup browser
-            const browser = await this.setupBrowser();
-            const context = await browser.newContext();
-            const page = await context.newPage();
-            
-            // Step 6: Add DXP cookie if needed
-            if (isDxpVersion) {
-                console.log("🍪 Adding DXP cookie...");
-                await context.addCookies([{
-                    name: constants.COOKIES.DXP_COOKIE.name,
-                    value: constants.COOKIES.DXP_COOKIE.value,
-                    domain: domain,
-                    path: constants.COOKIES.DXP_COOKIE.path,
-                    httpOnly: constants.COOKIES.DXP_COOKIE.httpOnly,
-                    secure: constants.COOKIES.DXP_COOKIE.secure
-                }]);
+            if (crawlMode === '3') {
+                await this.runComparisonMode(domain, credentials);
             } else {
-                console.log("🚫 No cookie added (PROD version)");
+                const isDxpVersion = crawlMode === '2';
+                await this.runSingleMode(domain, credentials, isDxpVersion);
             }
-            
-            // Step 7: Login to Matrix
-            console.log("\n--- PHASE 1: Logging into the Matrix! ---");
-            const matrixSuccess = await this.auth.login(page, isDxpVersion);
-            if (!matrixSuccess) {
-                throw new Error("Failed to log in to Matrix");
-            }
-            
-            // Step 8: Get URLs to process
-            console.log("\n--- PHASE 2: Starting URL Crawling ---");
-            const urls = await this.urlProcessor.getUrlsToProcess();
-            
-            // Step 9: Add performance suffix
-            const processedUrls = this.urlProcessor.addPerformanceSuffix(urls);
-            
-            // Step 10: Crawl URLs
-            const crawler = new PerformanceCrawler(this.csvReporter);
-            const results = await crawler.crawl(browser, context, page, processedUrls);
-            
-            // Step 11: Generate reports
-            crawler.generateReports();
-            
-            // Step 12: Display summary
-            crawler.displaySummary(this.startTime);
-            
-            console.log(`📄 All performance data was saved incrementally during crawling`);
-            
-            await browser.close();
             
         } catch (error) {
             console.error('Fatal error:', error);
             process.exit(1);
         }
+    }
+
+    async runComparisonMode(domain, credentials) {
+        console.log("\n🔀 Starting PROD vs DXP comparison...");
+        
+        if (!credentials.prod || !credentials.dxp) {
+            console.error("❌ Comparison mode requires both PROD and DXP credentials!");
+            console.log("ℹ️ Please update your credentials.js file with both 'prod' and 'dxp' sections.");
+            process.exit(1);
+        }
+        
+        if (!credentials.prod.username || !credentials.prod.password) {
+            console.error("❌ PROD credentials are incomplete!");
+            process.exit(1);
+        }
+        
+        if (!credentials.dxp.username || !credentials.dxp.password) {
+            console.error("❌ DXP credentials are incomplete!");
+            process.exit(1);
+        }
+        
+        const csvFilePath = await this.csvReporter.initialize(domain, 'comparison');
+        
+        const browser = await this.setupBrowser();
+        
+        const urls = await this.urlProcessor.getUrlsToProcess();
+        const processedUrls = this.urlProcessor.addPerformanceSuffix(urls);
+        
+        const comparisonCrawler = new ComparisonCrawler(this.csvReporter);
+        
+        const results = await comparisonCrawler.crawlComparison(browser, processedUrls, credentials);
+        
+        comparisonCrawler.generateReports();
+        
+        comparisonCrawler.displaySummary(this.startTime);
+        
+        console.log(`📄 Results saved to: ${csvFilePath}`);
+        
+        await browser.close();
+    }
+
+    async runSingleMode(domain, credentials, isDxpVersion) {
+        const versionText = isDxpVersion ? 'DXP' : 'PROD';
+        console.log(`\n🔧 Running ${versionText} mode...`);
+        
+        let selectedCredentials;
+        if (isDxpVersion) {
+            // DXP mode - use DXP credentials
+            if (!credentials.dxp || !credentials.dxp.username) {
+                console.error(`❌ No valid DXP credentials found!`);
+                console.log("ℹ️ Please add 'dxp' section to your credentials.js file");
+                process.exit(1);
+            }
+            selectedCredentials = { matrix: credentials.dxp };
+        } else {
+            // PROD mode - use PROD credentials
+            if (!credentials.prod || !credentials.prod.username) {
+                console.error(`❌ No valid PROD credentials found!`);
+                console.log("ℹ️ Please add 'prod' section to your credentials.js file");
+                process.exit(1);
+            }
+            selectedCredentials = { matrix: credentials.prod };
+        }
+        
+        const csvFilePath = await this.csvReporter.initialize(domain, isDxpVersion);
+        
+        const browser = await this.setupBrowser();
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        
+        if (isDxpVersion) {
+            console.log("🍪 Adding DXP cookie...");
+            await context.addCookies([{
+                name: constants.COOKIES.DXP_COOKIE.name,
+                value: constants.COOKIES.DXP_COOKIE.value,
+                domain: domain,
+                path: constants.COOKIES.DXP_COOKIE.path,
+                httpOnly: constants.COOKIES.DXP_COOKIE.httpOnly,
+                secure: constants.COOKIES.DXP_COOKIE.secure
+            }]);
+        } else {
+            console.log("🚫 No cookie added (PROD version)");
+        }
+        
+        console.log("\n--- PHASE 1: Logging into the Matrix! ---");
+        this.auth.credentials = selectedCredentials;
+        const matrixSuccess = await this.auth.login(page, isDxpVersion);
+        if (!matrixSuccess) {
+            throw new Error("Failed to log in to Matrix");
+        }
+        
+        console.log("\n--- PHASE 2: Starting URL Crawling ---");
+        const urls = await this.urlProcessor.getUrlsToProcess();
+        
+        const processedUrls = this.urlProcessor.addPerformanceSuffix(urls);
+        
+        const crawler = new PerformanceCrawler(this.csvReporter);
+        const results = await crawler.crawl(browser, context, page, processedUrls);
+        
+        crawler.generateReports();
+        
+        crawler.displaySummary(this.startTime);
+        
+        console.log(`📄 All performance data was saved incrementally during crawling`);
+        
+        await browser.close();
     }
 
     async setupBrowser() {
@@ -112,6 +177,5 @@ class MatrixCrawlerApp {
     }
 }
 
-// Run the application
 const app = new MatrixCrawlerApp();
 app.run();
