@@ -24,6 +24,7 @@ class CsvReporter {
     constructor() {
         this.csvWriter = null;
         this.csvFilePath = null;
+        this.isComparisonMode = false;
     }
 
     async initialize(domain, environmentOrMode) {
@@ -38,12 +39,42 @@ class CsvReporter {
         
         // Handle different filename patterns
         let filename;
+        let headers;
+        
         if (environmentOrMode === 'comparison') {
+            this.isComparisonMode = true;
             filename = `${cleanDomain}-comparison-${currentDate}-${hours}${minutes}.csv`;
+            
+            // Side-by-side comparison headers
+            headers = [
+                { id: 'url', title: 'URL' },
+                { id: 'prodTotalTime', title: 'PROD Total Time (s)' },
+                { id: 'prodSystemTime', title: 'PROD System Time (s)' },
+                { id: 'prodQueriesTime', title: 'PROD Queries Time (s)' },
+                { id: 'prodQueriesCount', title: 'PROD Queries Count' },
+                { id: 'dxpTotalTime', title: 'DXP Total Time (s)' },
+                { id: 'dxpSystemTime', title: 'DXP System Time (s)' },
+                { id: 'dxpQueriesTime', title: 'DXP Queries Time (s)' },
+                { id: 'dxpQueriesCount', title: 'DXP Queries Count' },
+                { id: 'timeDifference', title: 'Time Difference (s)' },
+                { id: 'timestamp', title: 'Timestamp' }
+            ];
         } else {
             // Legacy single environment mode
+            this.isComparisonMode = false;
             const environment = environmentOrMode ? 'dxp' : 'prod';
             filename = `${cleanDomain}-${environment}-${currentDate}-${hours}${minutes}.csv`;
+            
+            headers = (constants && constants.CSV && constants.CSV.HEADERS) 
+                ? constants.CSV.HEADERS 
+                : [
+                    { id: 'url', title: 'URL' },
+                    { id: 'totalTime', title: 'Total Time (s)' },
+                    { id: 'systemTime', title: 'System Time (s)' },
+                    { id: 'queriesTime', title: 'Queries Time (s)' },
+                    { id: 'queriesCount', title: 'Queries Count' },
+                    { id: 'timestamp', title: 'Timestamp' }
+                ];
         }
         
         let reportsDir = 'reports'; // default
@@ -63,30 +94,6 @@ class CsvReporter {
         }
         
         this.csvFilePath = path.join(reportsDir, filename);
-        
-        let headers;
-        if (environmentOrMode === 'comparison') {
-            headers = [
-                { id: 'url', title: 'URL' },
-                { id: 'environment', title: 'Environment' },
-                { id: 'totalTime', title: 'Total Time (s)' },
-                { id: 'systemTime', title: 'System Time (s)' },
-                { id: 'queriesTime', title: 'Queries Time (s)' },
-                { id: 'queriesCount', title: 'Queries Count' },
-                { id: 'timestamp', title: 'Timestamp' }
-            ];
-        } else {
-            headers = (constants && constants.CSV && constants.CSV.HEADERS) 
-                ? constants.CSV.HEADERS 
-                : [
-                    { id: 'url', title: 'URL' },
-                    { id: 'totalTime', title: 'Total Time (s)' },
-                    { id: 'systemTime', title: 'System Time (s)' },
-                    { id: 'queriesTime', title: 'Queries Time (s)' },
-                    { id: 'queriesCount', title: 'Queries Count' },
-                    { id: 'timestamp', title: 'Timestamp' }
-                ];
-        }
         
         this.csvWriter = createObjectCsvWriter({
             path: this.csvFilePath,
@@ -108,22 +115,71 @@ class CsvReporter {
                                    ? constants.CSV.DECIMAL_SEPARATOR 
                                    : ',';
             
-            const formattedRecord = {
-                url: record.url,
-                totalTime: record.totalTime ? record.totalTime.toString().replace('.', decimalSeparator) : null,
-                systemTime: record.systemTime ? record.systemTime.toString().replace('.', decimalSeparator) : null,
-                queriesTime: record.queriesTime ? record.queriesTime.toString().replace('.', decimalSeparator) : null,
-                queriesCount: record.queriesCount,
-                timestamp: record.timestamp
-            };
-            
-            if (record.environment) {
-                formattedRecord.environment = record.environment;
+            // Handle single environment mode (backward compatibility)
+            if (!this.isComparisonMode) {
+                const formattedRecord = {
+                    url: record.url,
+                    totalTime: record.totalTime ? record.totalTime.toString().replace('.', decimalSeparator) : null,
+                    systemTime: record.systemTime ? record.systemTime.toString().replace('.', decimalSeparator) : null,
+                    queriesTime: record.queriesTime ? record.queriesTime.toString().replace('.', decimalSeparator) : null,
+                    queriesCount: record.queriesCount,
+                    timestamp: record.timestamp
+                };
+                
+                await this.csvWriter.writeRecords([formattedRecord]);
+                return;
             }
             
-            await this.csvWriter.writeRecords([formattedRecord]);
+            // This method shouldn't be called in comparison mode
+            // Use saveComparisonRecord instead
+            console.warn('⚠️ savePerformanceRecord called in comparison mode. Use saveComparisonRecord instead.');
+            
         } catch (error) {
             console.error(`❌ Error saving CSV record: ${error.message}`);
+        }
+    }
+
+    // New method specifically for comparison mode
+    async saveComparisonRecord(url, prodData, dxpData, timeDifference) {
+        if (!this.csvWriter || !this.isComparisonMode) {
+            console.error('❌ CSV writer not initialized for comparison mode!');
+            return;
+        }
+        
+        try {
+            const decimalSeparator = (constants && constants.CSV && constants.CSV.DECIMAL_SEPARATOR) 
+                                   ? constants.CSV.DECIMAL_SEPARATOR 
+                                   : ',';
+            
+            // Helper function to format numbers with proper rounding and decimal separator
+            const formatNumber = (num) => {
+                if (num === null || num === undefined) return null;
+                // Round to 1 decimal place to avoid floating point precision issues
+                const rounded = Math.round(num * 10) / 10;
+                return rounded.toString().replace('.', decimalSeparator);
+            };
+            
+            const record = {
+                url: url,
+                // PROD data
+                prodTotalTime: prodData ? formatNumber(prodData.totalTime) : '',
+                prodSystemTime: prodData ? formatNumber(prodData.systemTime) : '',
+                prodQueriesTime: prodData ? formatNumber(prodData.queriesTime) : '',
+                prodQueriesCount: prodData ? prodData.queriesCount : '',
+                // DXP data
+                dxpTotalTime: dxpData ? formatNumber(dxpData.totalTime) : '',
+                dxpSystemTime: dxpData ? formatNumber(dxpData.systemTime) : '',
+                dxpQueriesTime: dxpData ? formatNumber(dxpData.queriesTime) : '',
+                dxpQueriesCount: dxpData ? dxpData.queriesCount : '',
+                // Comparison metrics
+                timeDifference: timeDifference !== null ? formatNumber(timeDifference) : '',
+                timestamp: new Date().toISOString()
+            };
+            
+            await this.csvWriter.writeRecords([record]);
+            
+        } catch (error) {
+            console.error(`❌ Error saving comparison CSV record: ${error.message}`);
         }
     }
 

@@ -108,7 +108,7 @@ Three options available:
 - **Current URL and progress** (e.g., "[15/100]")
 - **Processing speed** (URLs per minute)
 - **Estimated time remaining**
-- **Success/failure status** per URL
+- **Success/failure status** per URL (✅ PROD | ✅ DXP)
 
 ### 7. Review Results
 - **Summary statistics** show counts of successful, failed, timeout, 404, and 500 URLs
@@ -122,10 +122,10 @@ Three options available:
 ### **What It Does:**
 - Crawls **same URLs simultaneously** in both PROD and DXP environments  
 - **~50% faster** than running separate crawls
-- **Side-by-side performance data** in one CSV file
-- **Automatic difference calculations** and alerts for significant variances
+- **Side-by-side performance data** in one CSV file - one row per URL
+- **Clean data format** perfect for Excel analysis and pivot tables
 
-### **Example Output:**
+### **Example Console Output:**
 ```
 📍 [5/50] https://example.com/checkout/_performance
 🚀 Speed: 6/min | ETA: 450s
@@ -133,15 +133,26 @@ Three options available:
 
 📍 [6/50] https://example.com/products/_performance  
 🚀 Speed: 6/min | ETA: 440s
-   PROD: ✅ | DXP: ✅
+   PROD: ✅ | DXP: ❌
 ```
 
-### **CSV Output Format:**
+### **CSV Output Format - Side-by-Side Comparison:**
+
+The comparison mode creates a **single row per URL** with PROD and DXP data in separate columns:
+
+```csv
+URL,PROD Total Time (s),PROD System Time (s),PROD Queries Time (s),PROD Queries Count,DXP Total Time (s),DXP System Time (s),DXP Queries Time (s),DXP Queries Count,Time Difference (s),Timestamp
+https://example.com/page1,2,4,1,2,0,9,15,2,7,1,3,0,9,16,-0,3,2025-06-07T10:30:00Z
+https://example.com/page2,1,8,0,8,0,4,12,2,1,0,9,0,5,13,0,3,2025-06-07T10:30:15Z
+https://example.com/page3,3,2,,,,,,,,,2025-06-07T10:30:30Z
 ```
-URL, Environment, Total Time (s), System Time (s), Queries Time (s), Queries Count, Timestamp
-https://example.com/page1, PROD, 2,45, 1,23, 0,89, 15, 2025-06-07T10:30:00Z
-https://example.com/page1, DXP, 2,67, 1,34, 0,92, 16, 2025-06-07T10:30:15Z
-```
+
+**Failed URL Handling:**
+When PROD or DXP fails to load:
+- Failed environment columns remain **empty**
+- Successful environment data is still recorded
+- Time difference is only calculated when both environments succeed
+- Makes filtering and analysis in Excel much cleaner
 
 ## 📁 Output Files
 
@@ -149,13 +160,22 @@ https://example.com/page1, DXP, 2,67, 1,34, 0,92, 16, 2025-06-07T10:30:15Z
 - **Location**: `reports/domain-environment-YYYY-MM-DD-HHMM.csv`
 - **Format**: CSV with European decimal separators (comma)
 - **Single Mode**: `domain-prod-YYYY-MM-DD-HHMM.csv` or `domain-dxp-YYYY-MM-DD-HHMM.csv`
-- **Comparison Mode**: `domain-comparison-YYYY-MM-DD-HHMM.csv`
+- **Comparison Mode**: `domain-comparison-YYYY-MM-DD-HHMM.csv` (side-by-side format)
 
 ### URL Lists
 - **Crawled URLs**: `URLs/urls-crawled.txt` - Successfully processed URLs
 - **Failed URLs**: `URLs/urls-failed.txt` - URLs that failed to load
 - **404 URLs**: `URLs/urls-404.txt` - Not found URLs
 - **500 URLs**: `URLs/urls-500.txt` - Server error URLs
+
+### Comparison Mode Excel Tips
+The side-by-side CSV format is optimised for Excel analysis:
+
+1. **Import the CSV** - Excel will recognise the comma decimal separators
+2. **Filter by empty cells** - Quickly find URLs where one environment failed
+3. **Create pivot tables** - Analyse performance patterns across URL groups
+4. **Sort by time difference** - Identify biggest performance gaps
+5. **Use conditional formatting** - Highlight slow URLs or large differences
 
 ## ⚙️ Configuration
 
@@ -254,4 +274,4 @@ Multiple fallback methods for performance data extraction:
 
 ## 🚀 Happy Crawling!
 
-This crawler is designed to be robust, fast, and perfect for QA workflows. The **comparison mode with parallel execution** is the real game-changer - get side-by-side PROD vs DXP performance data in half the time of separate crawls.
+This crawler is designed to be robust, fast, and perfect for QA workflows. The **comparison mode with side-by-side CSV output** is the real game-changer - get clean, analysable PROD vs DXP performance data in half the time of separate crawls. Perfect for importing into Excel, creating performance reports, and identifying environment-specific issues.

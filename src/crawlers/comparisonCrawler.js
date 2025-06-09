@@ -21,6 +21,7 @@ class ComparisonCrawler {
             dxpNotFound: 0,
             prodServerError: 0,
             dxpServerError: 0,
+            bothSuccessful: 0,
             comparisonData: [],
             failedUrls: [],
             notFoundUrls: [],
@@ -69,7 +70,6 @@ class ComparisonCrawler {
             console.log(`   PROD: ${prodStatus} | DXP: ${dxpStatus}`);
             
             if (prodResult && prodResult.success) {
-                await this.csvReporter.savePerformanceRecord(prodResult.data);
                 this.results.prodSuccessful++;
                 this.fileReporter.recordCrawledUrl(url + ' (PROD)');
             } else if (prodResult) {
@@ -77,27 +77,39 @@ class ComparisonCrawler {
             }
             
             if (dxpResult && dxpResult.success) {
-                await this.csvReporter.savePerformanceRecord(dxpResult.data);
                 this.results.dxpSuccessful++;
                 this.fileReporter.recordCrawledUrl(url + ' (DXP)');
             } else if (dxpResult) {
                 this.handleEnvironmentError(dxpResult, 'DXP', url);
             }
             
+            let timeDifference = null;
+            let percentageDifference = null;
+            
             if (prodResult && dxpResult && prodResult.success && dxpResult.success) {
-                const timeDiff = dxpResult.data.totalTime - prodResult.data.totalTime;
-                const percentDiff = prodResult.data.totalTime > 0 ? 
-                    ((timeDiff / prodResult.data.totalTime) * 100).toFixed(2) : 0;
+                this.results.bothSuccessful++;
+                
+                timeDifference = Math.round((dxpResult.data.totalTime - prodResult.data.totalTime) * 10) / 10;
+                percentageDifference = prodResult.data.totalTime > 0 ? 
+                    Math.round(((timeDifference / prodResult.data.totalTime) * 100) * 10) / 10 : 0;
                 
                 this.results.comparisonData.push({
                     url: url,
                     prod: prodResult.data,
                     dxp: dxpResult.data,
-                    timeDifference: timeDiff,
-                    percentageDifference: percentDiff
+                    timeDifference: timeDifference,
+                    percentageDifference: percentageDifference
                 });
             }
+            
+            await this.csvReporter.saveComparisonRecord(
+                url,
+                prodResult && prodResult.success ? prodResult.data : null,
+                dxpResult && dxpResult.success ? dxpResult.data : null,
+                timeDifference
+            );
         }
+        
         console.log('\n✅ Comparison completed!\n');
         return this.results;
     }
@@ -229,9 +241,10 @@ class ComparisonCrawler {
     }
 
     displayComparisonSummary(startTime) {
-        console.log(`\n📊 Parallel Comparison Summary:`);
+        console.log(`\n📊 Side-by-Side Comparison Summary:`);
         console.log(`📝 Total URLs Processed: ${this.results.totalUrls}`);
-        console.log(`🔵 PROD Results:`);
+        console.log(`🤝 URLs with BOTH environments successful: ${this.results.bothSuccessful}`);        
+        console.log(`\n🔵 PROD Results:`);
         console.log(`   ✅ Successful: ${this.results.prodSuccessful}`);
         console.log(`   ❌ Failed: ${this.results.prodFailed}`);
         console.log(`   ⚠️ Timeouts: ${this.results.prodTimeouts}`);
